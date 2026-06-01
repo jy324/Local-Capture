@@ -3,6 +3,7 @@ export type TaskStatus = "todo" | "done";
 export type CaptureStatus = "active" | "archived" | "deleted";
 export type CaptureSourceType = "manual" | "clipboard" | "uri" | "mobile-share";
 export type DailySummaryTarget = "generated" | "daily-note";
+export type BatchTagMode = "add" | "remove" | "replace";
 
 export interface CaptureSource {
   type: CaptureSourceType;
@@ -36,6 +37,21 @@ export interface CaptureFilterState {
   query: string;
   status: CaptureStatus | "all";
   selectedDay?: string;
+}
+
+export interface SavedQuery extends CaptureFilterState {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface LocalCaptureDiagnostics {
+  captureCount: number;
+  captureFolder: string;
+  dailySummaryFolder: string;
+  canWriteCaptureFolder: boolean;
+  canWriteDailySummaryFolder: boolean;
+  issues: string[];
 }
 
 export type CaptureIndexListener = () => void;

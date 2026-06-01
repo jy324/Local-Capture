@@ -1,9 +1,18 @@
 import { App, Notice, TFile, normalizePath } from "obsidian";
 import { LocalCaptureSettings } from "../settings";
 import { CaptureIndex } from "./CaptureIndex";
-import { CaptureItem, CaptureStatus, CreateCaptureInput, TaskStatus } from "../types";
+import {
+  BatchTagMode,
+  CaptureItem,
+  CaptureStatus,
+  CaptureType,
+  CreateCaptureInput,
+  LocalCaptureDiagnostics,
+  TaskStatus
+} from "../types";
 import { buildCapturePath, dayKeyFromIso } from "../utils/dates";
 import { extractInlineTags, mergeTags } from "../utils/tags";
+import { uniqueTags } from "../utils/tags";
 import { parseCaptureFile, serializeCaptureFile } from "../utils/frontmatter";
 import { formatCaptureForAppend, formatDailySummaryBlock, upsertDailySummaryBlock } from "../utils/markdown";
 
@@ -95,6 +104,48 @@ export class CaptureService {
     await Promise.all(captures.map((capture) => this.setStatus(capture, "active")));
   }
 
+  async updateTagsMany(captures: CaptureItem[], tags: string[], mode: BatchTagMode): Promise<void> {
+    const normalizedTags = uniqueTags(tags);
+    if (normalizedTags.length === 0) return;
+
+    await Promise.all(
+      captures.map((capture) =>
+        this.updateFrontmatter(capture, (frontmatter) => {
+          const current = frontmatterTags(frontmatter.tags);
+          if (mode === "replace") {
+            frontmatter.tags = normalizedTags;
+          } else if (mode === "remove") {
+            const removeSet = new Set(normalizedTags.map((tag) => tag.toLocaleLowerCase()));
+            frontmatter.tags = current.filter((tag) => !removeSet.has(tag.toLocaleLowerCase()));
+          } else {
+            frontmatter.tags = uniqueTags([...current, ...normalizedTags]);
+          }
+          frontmatter.updated = new Date().toISOString();
+        })
+      )
+    );
+
+    new Notice(`已处理 ${captures.length} 条记录的标签`);
+  }
+
+  async setTypeMany(captures: CaptureItem[], type: CaptureType): Promise<void> {
+    await Promise.all(
+      captures.map((capture) =>
+        this.updateFrontmatter(capture, (frontmatter) => {
+          frontmatter.type = type;
+          if (type === "task") {
+            frontmatter.task_status = frontmatter.task_status === "done" ? "done" : "todo";
+          } else {
+            delete frontmatter.task_status;
+          }
+          frontmatter.updated = new Date().toISOString();
+        })
+      )
+    );
+
+    new Notice(`已将 ${captures.length} 条记录改为${type === "task" ? "任务" : "笔记"}`);
+  }
+
   async appendToFile(captures: CaptureItem[], target: TFile): Promise<void> {
     if (captures.length === 0) return;
 
@@ -136,6 +187,33 @@ export class CaptureService {
     await this.app.vault.process(target, (current) => upsertDailySummaryBlock(current, dayKey, block));
     new Notice(`已生成 ${dayKey} 摘要到 ${target.path}`);
     return target;
+  }
+
+  async runDiagnostics(): Promise<LocalCaptureDiagnostics> {
+    const settings = this.getSettings();
+    const issues: string[] = [];
+    const captureProbe = await this.probeFolder(settings.captureFolder);
+    const summaryFolder =
+      settings.dailySummaryTarget === "daily-note"
+        ? settings.dailyNoteFolder || "."
+        : settings.dailySummaryFolder;
+    const summaryProbe = await this.probeFolder(summaryFolder === "." ? "" : summaryFolder);
+
+    if (!captureProbe) {
+      issues.push(`无法写入记录目录：${settings.captureFolder}`);
+    }
+    if (!summaryProbe) {
+      issues.push(`无法写入摘要目录：${summaryFolder}`);
+    }
+
+    return {
+      captureCount: this.index.getItems().length,
+      captureFolder: settings.captureFolder,
+      dailySummaryFolder: summaryFolder,
+      canWriteCaptureFolder: captureProbe,
+      canWriteDailySummaryFolder: summaryProbe,
+      issues
+    };
   }
 
   private async updateFrontmatter(
@@ -183,6 +261,30 @@ export class CaptureService {
     return this.getFile(path);
   }
 
+  private async probeFolder(folder: string): Promise<boolean> {
+    const safeFolder = normalizePath(folder).replace(/^\/+|\/+$/g, "");
+    const probePath = normalizePath(
+      `${safeFolder ? `${safeFolder}/` : ""}.local-capture-diagnostic-${Date.now()}.md`
+    );
+
+    try {
+      await this.ensureParentFolder(probePath);
+      await this.app.vault.adapter.write(probePath, "Local Capture diagnostic probe\n");
+      await this.app.vault.adapter.remove(probePath);
+      return true;
+    } catch (error) {
+      console.error("Local Capture diagnostics failed", error);
+      try {
+        if (await this.app.vault.adapter.exists(probePath)) {
+          await this.app.vault.adapter.remove(probePath);
+        }
+      } catch (cleanupError) {
+        console.error("Local Capture diagnostics cleanup failed", cleanupError);
+      }
+      return false;
+    }
+  }
+
   private async ensureParentFolder(path: string): Promise<void> {
     const normalized = normalizePath(path);
     const parent = normalized.slice(0, normalized.lastIndexOf("/"));
@@ -225,4 +327,14 @@ function createShortId(): string {
   }
 
   return Math.random().toString(36).slice(2, 10);
+}
+
+function frontmatterTags(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return uniqueTags(value.filter((item): item is string => typeof item === "string"));
+  }
+  if (typeof value === "string" && value.trim()) {
+    return uniqueTags([value]);
+  }
+  return [];
 }

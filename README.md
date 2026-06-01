@@ -10,6 +10,7 @@ Local Capture 是一个 Markdown 原生、本地优先的 Obsidian 快速记录�
 - Send to File 会把记录正文追加到目标笔记，并自动归档原记录。
 - 支持剪贴板快速创建和 `obsidian://local-capture?...` URI 捕获。
 - 支持 Daily Summary，将选中日期或今天的记录汇总到独立摘要、Daily Note 或指定文件。
+- 支持表格视图、保存查询、批量标签和批量类型修改。
 - 完全离线，无遥测、账号、云同步或网络请求。
 
 ## 开发

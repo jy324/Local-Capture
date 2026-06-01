@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type LocalCapturePlugin from "./main";
 import { DEFAULT_CAPTURE_FOLDER, DEFAULT_DAILY_SUMMARY_FOLDER } from "./constants";
-import { CaptureType, DailySummaryTarget } from "./types";
+import { CaptureStatus, CaptureType, DailySummaryTarget, SavedQuery } from "./types";
 
 export interface LocalCaptureSettings {
   captureFolder: string;
@@ -12,6 +12,7 @@ export interface LocalCaptureSettings {
   dailySummaryTarget: DailySummaryTarget;
   dailySummaryFolder: string;
   dailyNoteFolder: string;
+  savedQueries: SavedQuery[];
 }
 
 export const DEFAULT_SETTINGS: LocalCaptureSettings = {
@@ -22,7 +23,8 @@ export const DEFAULT_SETTINGS: LocalCaptureSettings = {
   heatmapDays: 90,
   dailySummaryTarget: "generated",
   dailySummaryFolder: DEFAULT_DAILY_SUMMARY_FOLDER,
-  dailyNoteFolder: ""
+  dailyNoteFolder: "",
+  savedQueries: []
 };
 
 export function normalizeCaptureFolder(folder: string): string {
@@ -32,6 +34,40 @@ export function normalizeCaptureFolder(folder: string): string {
 
 export function normalizeFolder(folder: string): string {
   return normalizePath(folder.trim()).replace(/^\/+|\/+$/g, "");
+}
+
+export function normalizeSavedQueries(value: unknown): SavedQuery[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((query): query is Partial<SavedQuery> => typeof query === "object" && query !== null)
+    .map((query) => {
+      const status = normalizeQueryStatus(query.status);
+      const name = typeof query.name === "string" && query.name.trim() ? query.name.trim() : "未命名查询";
+      const id =
+        typeof query.id === "string" && query.id.trim()
+          ? query.id.trim()
+          : `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      return {
+        id,
+        name,
+        query: typeof query.query === "string" ? query.query : "",
+        status,
+        selectedDay: typeof query.selectedDay === "string" && query.selectedDay ? query.selectedDay : undefined,
+        createdAt:
+          typeof query.createdAt === "string" && query.createdAt
+            ? query.createdAt
+            : new Date().toISOString()
+      };
+    });
+}
+
+function normalizeQueryStatus(status: unknown): CaptureStatus | "all" {
+  if (status === "active" || status === "archived" || status === "deleted" || status === "all") {
+    return status;
+  }
+  return "active";
 }
 
 export class LocalCaptureSettingTab extends PluginSettingTab {

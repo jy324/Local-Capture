@@ -5,15 +5,18 @@ import {
   LocalCaptureSettingTab,
   LocalCaptureSettings,
   normalizeCaptureFolder,
-  normalizeFolder
+  normalizeFolder,
+  normalizeSavedQueries
 } from "./settings";
 import { CaptureIndex } from "./services/CaptureIndex";
 import { CaptureService } from "./services/CaptureService";
-import { CaptureItem, CaptureType } from "./types";
+import { CaptureFilterState, CaptureItem, CaptureType, SavedQuery } from "./types";
 import { QuickCaptureModal } from "./modals/QuickCaptureModal";
 import { TargetFileSuggestModal } from "./modals/TargetFileSuggestModal";
 import { LocalCaptureView } from "./view";
 import { todayDayKey } from "./utils/dates";
+import { BatchTagModal } from "./modals/BatchTagModal";
+import { BatchTypeModal } from "./modals/BatchTypeModal";
 
 export default class LocalCapturePlugin extends Plugin {
   settings!: LocalCaptureSettings;
@@ -59,7 +62,8 @@ export default class LocalCapturePlugin extends Plugin {
       dailySummaryFolder:
         normalizeFolder(loaded?.dailySummaryFolder ?? DEFAULT_SETTINGS.dailySummaryFolder) ||
         DEFAULT_SETTINGS.dailySummaryFolder,
-      dailyNoteFolder: normalizeFolder(loaded?.dailyNoteFolder ?? DEFAULT_SETTINGS.dailyNoteFolder)
+      dailyNoteFolder: normalizeFolder(loaded?.dailyNoteFolder ?? DEFAULT_SETTINGS.dailyNoteFolder),
+      savedQueries: normalizeSavedQueries(loaded?.savedQueries)
     };
   }
 
@@ -68,6 +72,7 @@ export default class LocalCapturePlugin extends Plugin {
     this.settings.dailySummaryFolder =
       normalizeFolder(this.settings.dailySummaryFolder) || DEFAULT_SETTINGS.dailySummaryFolder;
     this.settings.dailyNoteFolder = normalizeFolder(this.settings.dailyNoteFolder);
+    this.settings.savedQueries = normalizeSavedQueries(this.settings.savedQueries);
     await this.saveData(this.settings);
   }
 
@@ -105,6 +110,49 @@ export default class LocalCapturePlugin extends Plugin {
       await this.captureService.appendToFile(captures, target);
       this.selectedCaptureIds.clear();
     }).open();
+  }
+
+  openBatchTagModal(captures: CaptureItem[]): void {
+    if (captures.length === 0) {
+      new Notice("请先选择至少一条记录");
+      return;
+    }
+
+    new BatchTagModal(this, captures).open();
+  }
+
+  openBatchTypeModal(captures: CaptureItem[]): void {
+    if (captures.length === 0) {
+      new Notice("请先选择至少一条记录");
+      return;
+    }
+
+    new BatchTypeModal(this, captures).open();
+  }
+
+  async saveQuery(name: string, filter: CaptureFilterState): Promise<SavedQuery> {
+    const savedQuery: SavedQuery = {
+      id: `query-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: name.trim() || "未命名查询",
+      query: filter.query,
+      status: filter.status,
+      selectedDay: filter.selectedDay,
+      createdAt: new Date().toISOString()
+    };
+
+    this.settings.savedQueries = [...this.settings.savedQueries, savedQuery];
+    await this.saveSettings();
+    new Notice(`已保存查询：${savedQuery.name}`);
+    return savedQuery;
+  }
+
+  async deleteQuery(id: string): Promise<void> {
+    const deleted = this.settings.savedQueries.find((query) => query.id === id);
+    this.settings.savedQueries = this.settings.savedQueries.filter((query) => query.id !== id);
+    await this.saveSettings();
+    if (deleted) {
+      new Notice(`已删除查询：${deleted.name}`);
+    }
   }
 
   async generateSummaryForActiveDay(): Promise<void> {
@@ -194,6 +242,18 @@ export default class LocalCapturePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "batch-tag-selected-captures",
+      name: "批量处理选中记录标签",
+      callback: () => this.openBatchTagModal(this.getSelectedCaptures())
+    });
+
+    this.addCommand({
+      id: "batch-type-selected-captures",
+      name: "批量修改选中记录类型",
+      callback: () => this.openBatchTypeModal(this.getSelectedCaptures())
+    });
+
+    this.addCommand({
       id: "archive-selected-captures",
       name: "归档选中记录",
       callback: () => void this.captureService.archiveMany(this.getSelectedCaptures())
@@ -228,6 +288,19 @@ export default class LocalCapturePlugin extends Plugin {
       name: "发送当前日期摘要到文件",
       callback: () => void this.pickTargetAndGenerateSummary()
     });
+
+    this.addCommand({
+      id: "run-local-capture-diagnostics",
+      name: "运行 Local Capture 诊断",
+      callback: () => void this.runDiagnostics()
+    });
+  }
+
+  async runDiagnostics(): Promise<void> {
+    const diagnostics = await this.captureService.runDiagnostics();
+    console.info("Local Capture diagnostics", diagnostics);
+    const issueText = diagnostics.issues.length > 0 ? `，发现 ${diagnostics.issues.length} 个问题` : "，未发现问题";
+    new Notice(`Local Capture 诊断完成：${diagnostics.captureCount} 条记录${issueText}`);
   }
 
   private registerUriCapture(): void {

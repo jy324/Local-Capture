@@ -3,19 +3,25 @@ import {
   Archive,
   ArchiveRestore,
   CalendarPlus,
+  Columns3,
   Check,
   CheckCircle2,
   Circle,
   ExternalLink,
   FileInput,
+  List,
+  ListTodo,
   Pencil,
   Pin,
   PinOff,
   RefreshCcw,
   RotateCcw,
   Save,
+  Star,
   Search,
   Send,
+  Tags,
+  Table2,
   Trash2,
   X
 } from "lucide-react";
@@ -23,7 +29,7 @@ import { Notice } from "obsidian";
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type LocalCapturePlugin from "../main";
-import { CaptureItem, CaptureStatus, CaptureType } from "../types";
+import { CaptureItem, CaptureStatus, CaptureType, SavedQuery } from "../types";
 import { dayKeyFromIso, formatDisplayDateTime, formatDisplayTime, recentDayKeys, todayDayKey } from "../utils/dates";
 import { MarkdownPreview } from "./MarkdownPreview";
 
@@ -32,6 +38,7 @@ interface LocalCaptureAppProps {
 }
 
 type StatusFilter = CaptureStatus | "all";
+type ViewMode = "timeline" | "table";
 
 export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
   const [items, setItems] = useState<CaptureItem[]>(() => plugin.index.getItems());
@@ -41,6 +48,10 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
   const [status, setStatus] = useState<StatusFilter>("active");
   const [selectedDay, setSelectedDay] = useState<string | undefined>();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("timeline");
+  const [savedQueryName, setSavedQueryName] = useState("");
+  const [savedQueryId, setSavedQueryId] = useState("");
+  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>(() => plugin.settings.savedQueries);
 
   useEffect(() => {
     return plugin.index.subscribe(() => {
@@ -125,6 +136,30 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
 
   const summaryDay = selectedDay ?? todayDayKey();
 
+  async function saveCurrentQuery(): Promise<void> {
+    const name = savedQueryName.trim() || buildDefaultQueryName(query, status, selectedDay);
+    const saved = await plugin.saveQuery(name, { query, status, selectedDay });
+    setSavedQueries([...plugin.settings.savedQueries]);
+    setSavedQueryId(saved.id);
+    setSavedQueryName("");
+  }
+
+  async function deleteCurrentSavedQuery(): Promise<void> {
+    if (!savedQueryId) return;
+    await plugin.deleteQuery(savedQueryId);
+    setSavedQueries([...plugin.settings.savedQueries]);
+    setSavedQueryId("");
+  }
+
+  function applySavedQuery(id: string): void {
+    setSavedQueryId(id);
+    const saved = savedQueries.find((savedQuery) => savedQuery.id === id);
+    if (!saved) return;
+    setQuery(saved.query);
+    setStatus(saved.status);
+    setSelectedDay(saved.selectedDay);
+  }
+
   return (
     <div className="local-capture-app">
       <section className="local-capture-composer" aria-label="快速记录">
@@ -181,6 +216,54 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
           <StatusButton label="全部" value="all" status={status} onChange={setStatus} />
         </div>
 
+        <div className="local-capture-view-tabs" role="tablist" aria-label="视图切换">
+          <button
+            type="button"
+            className={viewMode === "timeline" ? "is-active" : ""}
+            title="时间线视图"
+            onClick={() => setViewMode("timeline")}
+          >
+            <List size={14} aria-hidden="true" />
+            时间线
+          </button>
+          <button
+            type="button"
+            className={viewMode === "table" ? "is-active" : ""}
+            title="表格视图"
+            onClick={() => setViewMode("table")}
+          >
+            <Table2 size={14} aria-hidden="true" />
+            表格
+          </button>
+        </div>
+
+        <div className="local-capture-saved-query-row">
+          <select value={savedQueryId} onChange={(event) => applySavedQuery(event.currentTarget.value)}>
+            <option value="">保存查询</option>
+            {savedQueries.map((savedQuery) => (
+              <option key={savedQuery.id} value={savedQuery.id}>
+                {savedQuery.name}
+              </option>
+            ))}
+          </select>
+          <input
+            value={savedQueryName}
+            placeholder="命名当前筛选"
+            onChange={(event) => setSavedQueryName(event.currentTarget.value)}
+          />
+          <button type="button" title="保存当前查询" onClick={() => void saveCurrentQuery()}>
+            <Star size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            title="删除选中查询"
+            disabled={!savedQueryId}
+            onClick={() => void deleteCurrentSavedQuery()}
+          >
+            <Trash2 size={14} aria-hidden="true" />
+          </button>
+        </div>
+
         <Heatmap
           items={items}
           days={plugin.settings.heatmapDays}
@@ -224,6 +307,14 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
             <Send size={14} aria-hidden="true" />
             到文件
           </button>
+          <button
+            type="button"
+            title="运行诊断"
+            onClick={() => void plugin.runDiagnostics()}
+          >
+            <Columns3 size={14} aria-hidden="true" />
+            诊断
+          </button>
         </div>
       </section>
 
@@ -232,6 +323,12 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
           <span>{selectedItems.length} 条</span>
           <button type="button" title="发送到文件" onClick={() => void plugin.pickTargetAndSend(selectedItems)}>
             <Send size={15} aria-hidden="true" />
+          </button>
+          <button type="button" title="批量标签" onClick={() => plugin.openBatchTagModal(selectedItems)}>
+            <Tags size={15} aria-hidden="true" />
+          </button>
+          <button type="button" title="批量类型" onClick={() => plugin.openBatchTypeModal(selectedItems)}>
+            <ListTodo size={15} aria-hidden="true" />
           </button>
           <button type="button" title="归档" onClick={() => void archiveSelected()}>
             <Archive size={15} aria-hidden="true" />
@@ -248,12 +345,21 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
         </div>
       ) : null}
 
-      <Timeline
-        plugin={plugin}
-        items={filteredItems}
-        selectedIds={selectedIds}
-        onToggleSelected={toggleSelected}
-      />
+      {viewMode === "timeline" ? (
+        <Timeline
+          plugin={plugin}
+          items={filteredItems}
+          selectedIds={selectedIds}
+          onToggleSelected={toggleSelected}
+        />
+      ) : (
+        <CaptureTable
+          plugin={plugin}
+          items={filteredItems}
+          selectedIds={selectedIds}
+          onToggleSelected={toggleSelected}
+        />
+      )}
     </div>
   );
 }
@@ -370,6 +476,62 @@ function Timeline({ plugin, items, selectedIds, onToggleSelected }: TimelineProp
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function CaptureTable({ plugin, items, selectedIds, onToggleSelected }: TimelineProps): JSX.Element {
+  if (items.length === 0) {
+    return (
+      <div className="local-capture-empty">
+        <FileInput size={28} aria-hidden="true" />
+        <span>没有匹配的记录</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="local-capture-table-wrap">
+      <table className="local-capture-table">
+        <thead>
+          <tr>
+            <th aria-label="选择" />
+            <th>时间</th>
+            <th>类型</th>
+            <th>状态</th>
+            <th>标题</th>
+            <th>标签</th>
+            <th aria-label="操作" />
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className={selectedIds.includes(item.id) ? "is-selected" : ""}>
+              <td>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(item.id)}
+                  onChange={() => onToggleSelected(item.id)}
+                />
+              </td>
+              <td>{formatDisplayDateTime(item.createdAt)}</td>
+              <td>{item.type === "task" ? "任务" : "笔记"}</td>
+              <td>{statusText(item.status)}</td>
+              <td>
+                <button type="button" onClick={() => void plugin.openCaptureFile(item)}>
+                  {item.title ?? "未命名记录"}
+                </button>
+              </td>
+              <td>{item.tags.map((tag) => `#${tag}`).join(" ")}</td>
+              <td>
+                <button type="button" title="发送到文件" onClick={() => void plugin.pickTargetAndSend([item])}>
+                  <Send size={14} aria-hidden="true" />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -526,4 +688,14 @@ function statusText(status: CaptureStatus): string {
   if (status === "archived") return "归档";
   if (status === "deleted") return "删除";
   return "活跃";
+}
+
+function buildDefaultQueryName(query: string, status: StatusFilter, selectedDay?: string): string {
+  const parts = [
+    selectedDay,
+    status === "all" ? "全部" : statusText(status),
+    query.trim() ? `"${query.trim()}"` : undefined
+  ].filter(Boolean);
+
+  return parts.join(" · ") || "当前筛选";
 }

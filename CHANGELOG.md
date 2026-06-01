@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0
+
+- Added runtime diagnostics for real vault smoke testing.
+- Added batch tag updates and batch note/task type conversion for selected captures.
+- Added a compact Table view alongside the timeline.
+- Added saved queries for reusable search/status/date filters.
+
 ## 0.6.0
 
 - Added Daily Summary generation for today or the currently selected heatmap day.
@@ -11,4 +18,3 @@
 
 - Initial Markdown-native quick capture timeline.
 - Added one-file-per-capture storage, search, tags, archive/delete/restore, Send to File, URI capture, and release-ready Obsidian assets.
-

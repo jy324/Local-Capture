@@ -25,6 +25,10 @@ Use this checklist before tagging a public test release.
 - Send one capture to an existing note.
 - Generate a Daily Summary for the selected heatmap date.
 - Send the same date summary to another file twice and confirm the managed block updates instead of duplicating.
+- Switch to Table view and confirm rows open source files correctly.
+- Select multiple captures, add/remove tags in batch, and change note/task type in batch.
+- Save a query, apply it, and delete it.
+- Run the Local Capture diagnostics command and confirm it reports no issues.
 - Run `obsidian://local-capture?text=hello%20%23qa&type=note` from the OS or browser.
 
 ## Mobile Basics
@@ -33,4 +37,3 @@ Use this checklist before tagging a public test release.
 - Create and edit a short capture.
 - Use search and status filters.
 - Generate today's summary.
-
