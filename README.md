@@ -9,6 +9,7 @@ Local Capture 是一个 Markdown 原生、本地优先的 Obsidian 快速记录�
 - 支持 note/task、置顶、归档、软删除、恢复、打开源文件。
 - Send to File 会把记录正文追加到目标笔记，并自动归档原记录。
 - 支持剪贴板快速创建和 `obsidian://local-capture?...` URI 捕获。
+- 支持 Daily Summary，将选中日期或今天的记录汇总到独立摘要、Daily Note 或指定文件。
 - 完全离线，无遥测、账号、云同步或网络请求。
 
 ## 开发
@@ -26,6 +27,20 @@ npm run build
 
 将 `main.js`、`manifest.json`、`styles.css` 放入 Obsidian vault 的 `.obsidian/plugins/local-capture/` 目录即可手动安装，也可用于 BRAT/GitHub Release 公测。
 
+也可以生成发布目录：
+
+```bash
+npm run package:release
+```
+
+产物会写入 `dist/local-capture/`，包含 `main.js`、`manifest.json`、`styles.css`、`versions.json` 和校验和。
+
+本地试装到测试 vault：
+
+```bash
+npm run install:vault -- "D:/Path/To/Vault"
+```
+
 ## URI 捕获
 
 Local Capture 注册了 `local-capture` 协议处理器，可从自动化工具创建记录：
@@ -36,6 +51,18 @@ obsidian://local-capture?body=todo%20item&type=task&url=https%3A%2F%2Fexample.co
 ```
 
 支持参数：`text`、`body`、`content`、`type=note|task`、`url`、`source_url`。
+
+## Daily Summary
+
+侧边栏中选择热力图日期后，可以直接生成该日期摘要；未选择日期时默认生成今天摘要。摘要使用托管块：
+
+```text
+<!-- local-capture-summary:start 2026-05-28 -->
+...
+<!-- local-capture-summary:end 2026-05-28 -->
+```
+
+重复生成同一天摘要时会更新原块，而不是重复追加。默认写入 `Captures/Generated/Daily Summary/YYYY-MM-DD.md`，也可以在设置里改为 Daily Note。
 
 ## 数据结构
 

@@ -2,6 +2,7 @@ import Fuse from "fuse.js";
 import {
   Archive,
   ArchiveRestore,
+  CalendarPlus,
   Check,
   CheckCircle2,
   Circle,
@@ -23,7 +24,7 @@ import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type LocalCapturePlugin from "../main";
 import { CaptureItem, CaptureStatus, CaptureType } from "../types";
-import { dayKeyFromIso, formatDisplayDateTime, formatDisplayTime, recentDayKeys } from "../utils/dates";
+import { dayKeyFromIso, formatDisplayDateTime, formatDisplayTime, recentDayKeys, todayDayKey } from "../utils/dates";
 import { MarkdownPreview } from "./MarkdownPreview";
 
 interface LocalCaptureAppProps {
@@ -50,6 +51,10 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
   useEffect(() => {
     plugin.setSelectedCaptureIds(selectedIds);
   }, [plugin, selectedIds]);
+
+  useEffect(() => {
+    plugin.setActiveDayKey(selectedDay);
+  }, [plugin, selectedDay]);
 
   useEffect(() => {
     const validIds = new Set(items.map((item) => item.id));
@@ -117,6 +122,8 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
     await plugin.captureService.restoreMany(selectedItems);
     setSelectedIds([]);
   }
+
+  const summaryDay = selectedDay ?? todayDayKey();
 
   return (
     <div className="local-capture-app">
@@ -191,6 +198,33 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
             <X size={14} aria-hidden="true" />
           </button>
         ) : null}
+
+        <div className="local-capture-tool-row">
+          <button
+            type="button"
+            title="重建索引"
+            onClick={() => void plugin.captureService.rebuildIndex()}
+          >
+            <RefreshCcw size={14} aria-hidden="true" />
+            重建
+          </button>
+          <button
+            type="button"
+            title={`生成 ${summaryDay} 摘要`}
+            onClick={() => void plugin.captureService.generateDailySummary(summaryDay)}
+          >
+            <CalendarPlus size={14} aria-hidden="true" />
+            摘要
+          </button>
+          <button
+            type="button"
+            title={`发送 ${summaryDay} 摘要到文件`}
+            onClick={() => void plugin.pickTargetAndGenerateSummary(summaryDay)}
+          >
+            <Send size={14} aria-hidden="true" />
+            到文件
+          </button>
+        </div>
       </section>
 
       {selectedItems.length > 0 ? (
@@ -493,4 +527,3 @@ function statusText(status: CaptureStatus): string {
   if (status === "deleted") return "删除";
   return "活跃";
 }
-

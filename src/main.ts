@@ -1,12 +1,19 @@
 import { Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
 import { PLUGIN_ID, VIEW_TYPE_LOCAL_CAPTURE } from "./constants";
-import { DEFAULT_SETTINGS, LocalCaptureSettingTab, LocalCaptureSettings, normalizeCaptureFolder } from "./settings";
+import {
+  DEFAULT_SETTINGS,
+  LocalCaptureSettingTab,
+  LocalCaptureSettings,
+  normalizeCaptureFolder,
+  normalizeFolder
+} from "./settings";
 import { CaptureIndex } from "./services/CaptureIndex";
 import { CaptureService } from "./services/CaptureService";
 import { CaptureItem, CaptureType } from "./types";
 import { QuickCaptureModal } from "./modals/QuickCaptureModal";
 import { TargetFileSuggestModal } from "./modals/TargetFileSuggestModal";
 import { LocalCaptureView } from "./view";
+import { todayDayKey } from "./utils/dates";
 
 export default class LocalCapturePlugin extends Plugin {
   settings!: LocalCaptureSettings;
@@ -14,6 +21,7 @@ export default class LocalCapturePlugin extends Plugin {
   captureService!: CaptureService;
 
   private selectedCaptureIds = new Set<string>();
+  private activeDayKey: string | undefined;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -47,12 +55,19 @@ export default class LocalCapturePlugin extends Plugin {
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...loaded,
-      captureFolder: normalizeCaptureFolder(loaded?.captureFolder ?? DEFAULT_SETTINGS.captureFolder)
+      captureFolder: normalizeCaptureFolder(loaded?.captureFolder ?? DEFAULT_SETTINGS.captureFolder),
+      dailySummaryFolder:
+        normalizeFolder(loaded?.dailySummaryFolder ?? DEFAULT_SETTINGS.dailySummaryFolder) ||
+        DEFAULT_SETTINGS.dailySummaryFolder,
+      dailyNoteFolder: normalizeFolder(loaded?.dailyNoteFolder ?? DEFAULT_SETTINGS.dailyNoteFolder)
     };
   }
 
   async saveSettings(): Promise<void> {
     this.settings.captureFolder = normalizeCaptureFolder(this.settings.captureFolder);
+    this.settings.dailySummaryFolder =
+      normalizeFolder(this.settings.dailySummaryFolder) || DEFAULT_SETTINGS.dailySummaryFolder;
+    this.settings.dailyNoteFolder = normalizeFolder(this.settings.dailyNoteFolder);
     await this.saveData(this.settings);
   }
 
@@ -72,6 +87,10 @@ export default class LocalCapturePlugin extends Plugin {
     this.selectedCaptureIds = new Set(ids);
   }
 
+  setActiveDayKey(dayKey: string | undefined): void {
+    this.activeDayKey = dayKey;
+  }
+
   getSelectedCaptures(): CaptureItem[] {
     return this.index.getByIds(this.selectedCaptureIds);
   }
@@ -85,6 +104,16 @@ export default class LocalCapturePlugin extends Plugin {
     new TargetFileSuggestModal(this, async (target) => {
       await this.captureService.appendToFile(captures, target);
       this.selectedCaptureIds.clear();
+    }).open();
+  }
+
+  async generateSummaryForActiveDay(): Promise<void> {
+    await this.captureService.generateDailySummary(this.activeDayKey ?? todayDayKey());
+  }
+
+  async pickTargetAndGenerateSummary(dayKey = this.activeDayKey ?? todayDayKey()): Promise<void> {
+    new TargetFileSuggestModal(this, async (target) => {
+      await this.captureService.generateDailySummary(dayKey, target);
     }).open();
   }
 
@@ -181,6 +210,24 @@ export default class LocalCapturePlugin extends Plugin {
       name: "恢复选中记录",
       callback: () => void this.captureService.restoreMany(this.getSelectedCaptures())
     });
+
+    this.addCommand({
+      id: "generate-today-daily-summary",
+      name: "生成今日摘要",
+      callback: () => void this.captureService.generateDailySummary(todayDayKey())
+    });
+
+    this.addCommand({
+      id: "generate-current-day-daily-summary",
+      name: "生成当前日期摘要",
+      callback: () => void this.generateSummaryForActiveDay()
+    });
+
+    this.addCommand({
+      id: "send-current-day-summary-to-file",
+      name: "发送当前日期摘要到文件",
+      callback: () => void this.pickTargetAndGenerateSummary()
+    });
   }
 
   private registerUriCapture(): void {
@@ -236,4 +283,3 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 function normalizeCaptureType(value: string | undefined, fallback: CaptureType): CaptureType {
   return value === "task" || value === "note" ? value : fallback;
 }
-

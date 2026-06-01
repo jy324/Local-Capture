@@ -35,6 +35,10 @@ export function dayKeyFromDate(date: Date): string {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
+export function todayDayKey(): string {
+  return dayKeyFromDate(new Date());
+}
+
 export function dayKeyFromIso(iso: string): string {
   return dayKeyFromDate(new Date(iso));
 }

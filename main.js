@@ -7290,6 +7290,7 @@ var import_obsidian9 = require("obsidian");
 // src/constants.ts
 var VIEW_TYPE_LOCAL_CAPTURE = "local-capture-view";
 var DEFAULT_CAPTURE_FOLDER = "Captures";
+var DEFAULT_DAILY_SUMMARY_FOLDER = "Captures/Generated/Daily Summary";
 var PLUGIN_ID = "local-capture";
 
 // src/settings.ts
@@ -7299,11 +7300,17 @@ var DEFAULT_SETTINGS = {
   defaultType: "note",
   autoArchiveAfterSend: true,
   timelinePageSize: 80,
-  heatmapDays: 90
+  heatmapDays: 90,
+  dailySummaryTarget: "generated",
+  dailySummaryFolder: DEFAULT_DAILY_SUMMARY_FOLDER,
+  dailyNoteFolder: ""
 };
 function normalizeCaptureFolder(folder) {
   const trimmed = folder.trim() || DEFAULT_CAPTURE_FOLDER;
   return (0, import_obsidian.normalizePath)(trimmed).replace(/^\/+|\/+$/g, "");
+}
+function normalizeFolder(folder) {
+  return (0, import_obsidian.normalizePath)(folder.trim()).replace(/^\/+|\/+$/g, "");
 }
 var LocalCaptureSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
@@ -7344,6 +7351,25 @@ var LocalCaptureSettingTab = class extends import_obsidian.PluginSettingTab {
       text.setValue(String(this.plugin.settings.heatmapDays)).onChange(async (value) => {
         const parsed = Number.parseInt(value, 10);
         this.plugin.settings.heatmapDays = Number.isFinite(parsed) ? Math.max(14, Math.min(parsed, 365)) : DEFAULT_SETTINGS.heatmapDays;
+        await this.plugin.saveSettings();
+      });
+    });
+    containerEl.createEl("h3", { text: "\u6BCF\u65E5\u6458\u8981" });
+    new import_obsidian.Setting(containerEl).setName("\u9ED8\u8BA4\u6458\u8981\u76EE\u6807").setDesc("\u751F\u6210\u6BCF\u65E5\u6458\u8981\u65F6\uFF0C\u9ED8\u8BA4\u5199\u5165\u72EC\u7ACB\u6458\u8981\u6587\u4EF6\u6216 Daily Note\u3002").addDropdown((dropdown) => {
+      dropdown.addOption("generated", "\u72EC\u7ACB\u6458\u8981\u6587\u4EF6").addOption("daily-note", "Daily Note").setValue(this.plugin.settings.dailySummaryTarget).onChange(async (value) => {
+        this.plugin.settings.dailySummaryTarget = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("\u6458\u8981\u6587\u4EF6\u76EE\u5F55").setDesc("\u9ED8\u8BA4\u6A21\u5F0F\u4E3A\u72EC\u7ACB\u6458\u8981\u6587\u4EF6\u65F6\u4F7F\u7528\u3002").addText((text) => {
+      text.setPlaceholder(DEFAULT_DAILY_SUMMARY_FOLDER).setValue(this.plugin.settings.dailySummaryFolder).onChange(async (value) => {
+        this.plugin.settings.dailySummaryFolder = normalizeFolder(value) || DEFAULT_DAILY_SUMMARY_FOLDER;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Daily Note \u76EE\u5F55").setDesc("\u9ED8\u8BA4\u6A21\u5F0F\u4E3A Daily Note \u65F6\u4F7F\u7528\uFF1B\u7559\u7A7A\u8868\u793A vault \u6839\u76EE\u5F55\u3002\u6587\u4EF6\u540D\u56FA\u5B9A\u4E3A YYYY-MM-DD.md\u3002").addText((text) => {
+      text.setPlaceholder("Daily").setValue(this.plugin.settings.dailyNoteFolder).onChange(async (value) => {
+        this.plugin.settings.dailyNoteFolder = normalizeFolder(value);
         await this.plugin.saveSettings();
       });
     });
@@ -7651,6 +7677,9 @@ function dayKeyFromDate(date) {
   const parts = localDateParts(date);
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
+function todayDayKey() {
+  return dayKeyFromDate(/* @__PURE__ */ new Date());
+}
 function dayKeyFromIso(iso) {
   return dayKeyFromDate(new Date(iso));
 }
@@ -7687,6 +7716,59 @@ ${capture.bodyMarkdown.trim()}
 
 > ${sourceLine}
 `;
+}
+function formatDailySummaryBlock(dayKey, captures) {
+  const sorted = captures.filter((capture) => capture.status !== "deleted" && dayKeyFromIso(capture.createdAt) === dayKey).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const noteCount = sorted.filter((capture) => capture.type === "note").length;
+  const taskCount = sorted.filter((capture) => capture.type === "task").length;
+  const doneTaskCount = sorted.filter((capture) => capture.type === "task" && capture.taskStatus === "done").length;
+  const lines = [
+    summaryStartMarker(dayKey),
+    `## Local Capture \xB7 ${dayKey}`,
+    "",
+    `\u5171 ${sorted.length} \u6761\u8BB0\u5F55\uFF1A${noteCount} \u6761\u7B14\u8BB0\uFF0C${taskCount} \u4E2A\u4EFB\u52A1\uFF0C${doneTaskCount} \u4E2A\u5DF2\u5B8C\u6210\u3002`,
+    ""
+  ];
+  if (sorted.length === 0) {
+    lines.push("\u4ECA\u65E5\u6682\u65E0\u8BB0\u5F55\u3002", "");
+  } else {
+    for (const capture of sorted) {
+      const typeText = capture.type === "task" ? taskStatusText(capture) : "\u7B14\u8BB0";
+      const tags = capture.tags.length > 0 ? ` \xB7 ${capture.tags.map((tag) => `#${tag}`).join(" ")}` : "";
+      const title = capture.title ?? "\u672A\u547D\u540D\u8BB0\u5F55";
+      lines.push(`### ${formatDisplayTime(capture.createdAt)} \xB7 ${typeText}${tags}`);
+      lines.push(`![[${capture.path}|${title}]]`);
+      lines.push("");
+    }
+  }
+  lines.push(summaryEndMarker(dayKey), "");
+  return lines.join("\n");
+}
+function upsertDailySummaryBlock(current, dayKey, block) {
+  const start = summaryStartMarker(dayKey);
+  const end = summaryEndMarker(dayKey);
+  const escapedStart = escapeRegExp(start);
+  const escapedEnd = escapeRegExp(end);
+  const existingBlock = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}\\n?`);
+  if (existingBlock.test(current)) {
+    return current.replace(existingBlock, block);
+  }
+  const prefix = current.trimEnd();
+  return prefix ? `${prefix}
+
+${block}` : block;
+}
+function summaryStartMarker(dayKey) {
+  return `<!-- local-capture-summary:start ${dayKey} -->`;
+}
+function summaryEndMarker(dayKey) {
+  return `<!-- local-capture-summary:end ${dayKey} -->`;
+}
+function taskStatusText(capture) {
+  return capture.taskStatus === "done" ? "\u4EFB\u52A1\u5DF2\u5B8C\u6210" : "\u4EFB\u52A1\u5F85\u529E";
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // src/services/CaptureService.ts
@@ -7786,6 +7868,15 @@ var CaptureService = class {
     await this.index.rebuild();
     new import_obsidian3.Notice("Local Capture \u7D22\u5F15\u5DF2\u91CD\u5EFA");
   }
+  async generateDailySummary(dayKey, targetFile) {
+    const captures = this.index.getItems().filter((capture) => capture.status !== "deleted" && dayKeyFromIso(capture.createdAt) === dayKey);
+    const target = targetFile ?? await this.getOrCreateDailySummaryTarget(dayKey);
+    if (!target) return null;
+    const block = formatDailySummaryBlock(dayKey, captures);
+    await this.app.vault.process(target, (current) => upsertDailySummaryBlock(current, dayKey, block));
+    new import_obsidian3.Notice(`\u5DF2\u751F\u6210 ${dayKey} \u6458\u8981\u5230 ${target.path}`);
+    return target;
+  }
   async updateFrontmatter(capture, update) {
     const file = this.requireFile(capture.path);
     if (!file) return;
@@ -7802,6 +7893,16 @@ var CaptureService = class {
       path = buildCapturePath(folder, createdAt, id);
     }
     return { id, path };
+  }
+  async getOrCreateDailySummaryTarget(dayKey) {
+    const settings = this.getSettings();
+    const fileName = `${dayKey}.md`;
+    const path = settings.dailySummaryTarget === "daily-note" ? (0, import_obsidian3.normalizePath)(settings.dailyNoteFolder ? `${settings.dailyNoteFolder}/${fileName}` : fileName) : (0, import_obsidian3.normalizePath)(`${settings.dailySummaryFolder}/${fileName}`);
+    const existing = this.getFile(path);
+    if (existing) return existing;
+    await this.ensureParentFolder(path);
+    await this.app.vault.create(path, "");
+    return this.getFile(path);
   }
   async ensureParentFolder(path) {
     const normalized = (0, import_obsidian3.normalizePath)(path);
@@ -10002,6 +10103,16 @@ var Archive = createLucideIcon("Archive", [
   ["path", { d: "M10 12h4", key: "a56b0p" }]
 ]);
 
+// node_modules/lucide-react/dist/esm/icons/calendar-plus.js
+var CalendarPlus = createLucideIcon("CalendarPlus", [
+  ["path", { d: "M8 2v4", key: "1cmpym" }],
+  ["path", { d: "M16 2v4", key: "4m81vk" }],
+  ["path", { d: "M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8", key: "3spt84" }],
+  ["path", { d: "M3 10h18", key: "8toen8" }],
+  ["path", { d: "M16 19h6", key: "xwg31i" }],
+  ["path", { d: "M19 16v6", key: "tddt3s" }]
+]);
+
 // node_modules/lucide-react/dist/esm/icons/check.js
 var Check = createLucideIcon("Check", [["path", { d: "M20 6 9 17l-5-5", key: "1gmf2c" }]]);
 
@@ -10067,6 +10178,14 @@ var Pin = createLucideIcon("Pin", [
       key: "1nkz8b"
     }
   ]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/refresh-ccw.js
+var RefreshCcw = createLucideIcon("RefreshCcw", [
+  ["path", { d: "M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "14sxne" }],
+  ["path", { d: "M3 3v5h5", key: "1xhq8a" }],
+  ["path", { d: "M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16", key: "1hlbsb" }],
+  ["path", { d: "M16 16h5v5", key: "ccwih5" }]
 ]);
 
 // node_modules/lucide-react/dist/esm/icons/rotate-ccw.js
@@ -11460,6 +11579,9 @@ function LocalCaptureApp({ plugin }) {
     plugin.setSelectedCaptureIds(selectedIds);
   }, [plugin, selectedIds]);
   (0, import_react4.useEffect)(() => {
+    plugin.setActiveDayKey(selectedDay);
+  }, [plugin, selectedDay]);
+  (0, import_react4.useEffect)(() => {
     const validIds = new Set(items.map((item) => item.id));
     setSelectedIds((current) => current.filter((id) => validIds.has(id)));
   }, [items]);
@@ -11511,6 +11633,7 @@ function LocalCaptureApp({ plugin }) {
     await plugin.captureService.restoreMany(selectedItems);
     setSelectedIds([]);
   }
+  const summaryDay = selectedDay ?? todayDayKey();
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-app", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "local-capture-composer", "aria-label": "\u5FEB\u901F\u8BB0\u5F55", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -11597,7 +11720,45 @@ function LocalCaptureApp({ plugin }) {
             /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(X, { size: 14, "aria-hidden": "true" })
           ]
         }
-      ) : null
+      ) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-tool-row", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            title: "\u91CD\u5EFA\u7D22\u5F15",
+            onClick: () => void plugin.captureService.rebuildIndex(),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RefreshCcw, { size: 14, "aria-hidden": "true" }),
+              "\u91CD\u5EFA"
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            title: `\u751F\u6210 ${summaryDay} \u6458\u8981`,
+            onClick: () => void plugin.captureService.generateDailySummary(summaryDay),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(CalendarPlus, { size: 14, "aria-hidden": "true" }),
+              "\u6458\u8981"
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            title: `\u53D1\u9001 ${summaryDay} \u6458\u8981\u5230\u6587\u4EF6`,
+            onClick: () => void plugin.pickTargetAndGenerateSummary(summaryDay),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Send, { size: 14, "aria-hidden": "true" }),
+              "\u5230\u6587\u4EF6"
+            ]
+          }
+        )
+      ] })
     ] }),
     selectedItems.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-batchbar", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
@@ -11860,11 +12021,15 @@ var LocalCapturePlugin = class extends import_obsidian9.Plugin {
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...loaded,
-      captureFolder: normalizeCaptureFolder(loaded?.captureFolder ?? DEFAULT_SETTINGS.captureFolder)
+      captureFolder: normalizeCaptureFolder(loaded?.captureFolder ?? DEFAULT_SETTINGS.captureFolder),
+      dailySummaryFolder: normalizeFolder(loaded?.dailySummaryFolder ?? DEFAULT_SETTINGS.dailySummaryFolder) || DEFAULT_SETTINGS.dailySummaryFolder,
+      dailyNoteFolder: normalizeFolder(loaded?.dailyNoteFolder ?? DEFAULT_SETTINGS.dailyNoteFolder)
     };
   }
   async saveSettings() {
     this.settings.captureFolder = normalizeCaptureFolder(this.settings.captureFolder);
+    this.settings.dailySummaryFolder = normalizeFolder(this.settings.dailySummaryFolder) || DEFAULT_SETTINGS.dailySummaryFolder;
+    this.settings.dailyNoteFolder = normalizeFolder(this.settings.dailyNoteFolder);
     await this.saveData(this.settings);
   }
   async activateView() {
@@ -11880,6 +12045,9 @@ var LocalCapturePlugin = class extends import_obsidian9.Plugin {
   setSelectedCaptureIds(ids) {
     this.selectedCaptureIds = new Set(ids);
   }
+  setActiveDayKey(dayKey) {
+    this.activeDayKey = dayKey;
+  }
   getSelectedCaptures() {
     return this.index.getByIds(this.selectedCaptureIds);
   }
@@ -11891,6 +12059,14 @@ var LocalCapturePlugin = class extends import_obsidian9.Plugin {
     new TargetFileSuggestModal(this, async (target) => {
       await this.captureService.appendToFile(captures, target);
       this.selectedCaptureIds.clear();
+    }).open();
+  }
+  async generateSummaryForActiveDay() {
+    await this.captureService.generateDailySummary(this.activeDayKey ?? todayDayKey());
+  }
+  async pickTargetAndGenerateSummary(dayKey = this.activeDayKey ?? todayDayKey()) {
+    new TargetFileSuggestModal(this, async (target) => {
+      await this.captureService.generateDailySummary(dayKey, target);
     }).open();
   }
   async openCaptureFile(capture) {
@@ -11971,6 +12147,21 @@ var LocalCapturePlugin = class extends import_obsidian9.Plugin {
       id: "restore-selected-captures",
       name: "\u6062\u590D\u9009\u4E2D\u8BB0\u5F55",
       callback: () => void this.captureService.restoreMany(this.getSelectedCaptures())
+    });
+    this.addCommand({
+      id: "generate-today-daily-summary",
+      name: "\u751F\u6210\u4ECA\u65E5\u6458\u8981",
+      callback: () => void this.captureService.generateDailySummary(todayDayKey())
+    });
+    this.addCommand({
+      id: "generate-current-day-daily-summary",
+      name: "\u751F\u6210\u5F53\u524D\u65E5\u671F\u6458\u8981",
+      callback: () => void this.generateSummaryForActiveDay()
+    });
+    this.addCommand({
+      id: "send-current-day-summary-to-file",
+      name: "\u53D1\u9001\u5F53\u524D\u65E5\u671F\u6458\u8981\u5230\u6587\u4EF6",
+      callback: () => void this.pickTargetAndGenerateSummary()
     });
   }
   registerUriCapture() {
@@ -12071,6 +12262,7 @@ lucide-react/dist/esm/Icon.js:
 lucide-react/dist/esm/createLucideIcon.js:
 lucide-react/dist/esm/icons/archive-restore.js:
 lucide-react/dist/esm/icons/archive.js:
+lucide-react/dist/esm/icons/calendar-plus.js:
 lucide-react/dist/esm/icons/check.js:
 lucide-react/dist/esm/icons/circle-check.js:
 lucide-react/dist/esm/icons/circle.js:
@@ -12079,6 +12271,7 @@ lucide-react/dist/esm/icons/file-input.js:
 lucide-react/dist/esm/icons/pencil.js:
 lucide-react/dist/esm/icons/pin-off.js:
 lucide-react/dist/esm/icons/pin.js:
+lucide-react/dist/esm/icons/refresh-ccw.js:
 lucide-react/dist/esm/icons/rotate-ccw.js:
 lucide-react/dist/esm/icons/save.js:
 lucide-react/dist/esm/icons/search.js:

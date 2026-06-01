@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type LocalCapturePlugin from "./main";
-import { DEFAULT_CAPTURE_FOLDER } from "./constants";
-import { CaptureType } from "./types";
+import { DEFAULT_CAPTURE_FOLDER, DEFAULT_DAILY_SUMMARY_FOLDER } from "./constants";
+import { CaptureType, DailySummaryTarget } from "./types";
 
 export interface LocalCaptureSettings {
   captureFolder: string;
@@ -9,6 +9,9 @@ export interface LocalCaptureSettings {
   autoArchiveAfterSend: boolean;
   timelinePageSize: number;
   heatmapDays: number;
+  dailySummaryTarget: DailySummaryTarget;
+  dailySummaryFolder: string;
+  dailyNoteFolder: string;
 }
 
 export const DEFAULT_SETTINGS: LocalCaptureSettings = {
@@ -16,12 +19,19 @@ export const DEFAULT_SETTINGS: LocalCaptureSettings = {
   defaultType: "note",
   autoArchiveAfterSend: true,
   timelinePageSize: 80,
-  heatmapDays: 90
+  heatmapDays: 90,
+  dailySummaryTarget: "generated",
+  dailySummaryFolder: DEFAULT_DAILY_SUMMARY_FOLDER,
+  dailyNoteFolder: ""
 };
 
 export function normalizeCaptureFolder(folder: string): string {
   const trimmed = folder.trim() || DEFAULT_CAPTURE_FOLDER;
   return normalizePath(trimmed).replace(/^\/+|\/+$/g, "");
+}
+
+export function normalizeFolder(folder: string): string {
+  return normalizePath(folder.trim()).replace(/^\/+|\/+$/g, "");
 }
 
 export class LocalCaptureSettingTab extends PluginSettingTab {
@@ -100,6 +110,48 @@ export class LocalCaptureSettingTab extends PluginSettingTab {
             this.plugin.settings.heatmapDays = Number.isFinite(parsed)
               ? Math.max(14, Math.min(parsed, 365))
               : DEFAULT_SETTINGS.heatmapDays;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    containerEl.createEl("h3", { text: "每日摘要" });
+
+    new Setting(containerEl)
+      .setName("默认摘要目标")
+      .setDesc("生成每日摘要时，默认写入独立摘要文件或 Daily Note。")
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("generated", "独立摘要文件")
+          .addOption("daily-note", "Daily Note")
+          .setValue(this.plugin.settings.dailySummaryTarget)
+          .onChange(async (value) => {
+            this.plugin.settings.dailySummaryTarget = value as DailySummaryTarget;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("摘要文件目录")
+      .setDesc("默认模式为独立摘要文件时使用。")
+      .addText((text) => {
+        text
+          .setPlaceholder(DEFAULT_DAILY_SUMMARY_FOLDER)
+          .setValue(this.plugin.settings.dailySummaryFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.dailySummaryFolder = normalizeFolder(value) || DEFAULT_DAILY_SUMMARY_FOLDER;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Daily Note 目录")
+      .setDesc("默认模式为 Daily Note 时使用；留空表示 vault 根目录。文件名固定为 YYYY-MM-DD.md。")
+      .addText((text) => {
+        text
+          .setPlaceholder("Daily")
+          .setValue(this.plugin.settings.dailyNoteFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.dailyNoteFolder = normalizeFolder(value);
             await this.plugin.saveSettings();
           });
       });

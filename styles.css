@@ -183,6 +183,27 @@
   color: var(--text-muted);
 }
 
+.local-capture-tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.local-capture-tool-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--text-muted);
+}
+
+.local-capture-tool-row button:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
 .local-capture-batchbar {
   flex: 0 0 auto;
   padding: 7px 10px;
@@ -377,4 +398,3 @@
     justify-content: flex-start;
   }
 }
-

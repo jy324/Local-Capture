@@ -2,6 +2,7 @@ export type CaptureType = "note" | "task";
 export type TaskStatus = "todo" | "done";
 export type CaptureStatus = "active" | "archived" | "deleted";
 export type CaptureSourceType = "manual" | "clipboard" | "uri" | "mobile-share";
+export type DailySummaryTarget = "generated" | "daily-note";
 
 export interface CaptureSource {
   type: CaptureSourceType;
@@ -38,4 +39,3 @@ export interface CaptureFilterState {
 }
 
 export type CaptureIndexListener = () => void;
-

@@ -2,10 +2,10 @@ import { App, Notice, TFile, normalizePath } from "obsidian";
 import { LocalCaptureSettings } from "../settings";
 import { CaptureIndex } from "./CaptureIndex";
 import { CaptureItem, CaptureStatus, CreateCaptureInput, TaskStatus } from "../types";
-import { buildCapturePath } from "../utils/dates";
+import { buildCapturePath, dayKeyFromIso } from "../utils/dates";
 import { extractInlineTags, mergeTags } from "../utils/tags";
 import { parseCaptureFile, serializeCaptureFile } from "../utils/frontmatter";
-import { formatCaptureForAppend } from "../utils/markdown";
+import { formatCaptureForAppend, formatDailySummaryBlock, upsertDailySummaryBlock } from "../utils/markdown";
 
 export class CaptureService {
   constructor(
@@ -125,6 +125,19 @@ export class CaptureService {
     new Notice("Local Capture 索引已重建");
   }
 
+  async generateDailySummary(dayKey: string, targetFile?: TFile): Promise<TFile | null> {
+    const captures = this.index
+      .getItems()
+      .filter((capture) => capture.status !== "deleted" && dayKeyFromIso(capture.createdAt) === dayKey);
+    const target = targetFile ?? (await this.getOrCreateDailySummaryTarget(dayKey));
+    if (!target) return null;
+
+    const block = formatDailySummaryBlock(dayKey, captures);
+    await this.app.vault.process(target, (current) => upsertDailySummaryBlock(current, dayKey, block));
+    new Notice(`已生成 ${dayKey} 摘要到 ${target.path}`);
+    return target;
+  }
+
   private async updateFrontmatter(
     capture: CaptureItem,
     update: (frontmatter: Record<string, unknown>) => void
@@ -152,6 +165,22 @@ export class CaptureService {
     }
 
     return { id, path };
+  }
+
+  private async getOrCreateDailySummaryTarget(dayKey: string): Promise<TFile | null> {
+    const settings = this.getSettings();
+    const fileName = `${dayKey}.md`;
+    const path =
+      settings.dailySummaryTarget === "daily-note"
+        ? normalizePath(settings.dailyNoteFolder ? `${settings.dailyNoteFolder}/${fileName}` : fileName)
+        : normalizePath(`${settings.dailySummaryFolder}/${fileName}`);
+
+    const existing = this.getFile(path);
+    if (existing) return existing;
+
+    await this.ensureParentFolder(path);
+    await this.app.vault.create(path, "");
+    return this.getFile(path);
   }
 
   private async ensureParentFolder(path: string): Promise<void> {
