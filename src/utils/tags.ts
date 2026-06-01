@@ -32,3 +32,21 @@ export function extractInlineTags(markdown: string): string[] {
 export function mergeTags(...tagGroups: string[][]): string[] {
   return uniqueTags(tagGroups.flat());
 }
+
+export function replaceInlineTag(markdown: string, oldTag: string, newTag?: string): string {
+  const normalizedOld = normalizeTag(oldTag);
+  if (!normalizedOld) return markdown;
+
+  const replacement = newTag ? `#${normalizeTag(newTag)}` : "";
+  const escapedOld = escapeRegExp(normalizedOld);
+  const pattern = new RegExp(`(^|[\\s([{>])#${escapedOld}(?=$|[\\s\\])},.!?:;，。！？、])`, "giu");
+
+  return markdown.replace(pattern, (_match, prefix: string) => {
+    if (!replacement) return prefix;
+    return `${prefix}${replacement}`;
+  });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

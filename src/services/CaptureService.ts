@@ -3,6 +3,7 @@ import { LocalCaptureSettings } from "../settings";
 import { CaptureIndex } from "./CaptureIndex";
 import {
   BatchTagMode,
+  CaptureSourceType,
   CaptureItem,
   CaptureStatus,
   CaptureType,
@@ -11,8 +12,7 @@ import {
   TaskStatus
 } from "../types";
 import { buildCapturePath, dayKeyFromIso } from "../utils/dates";
-import { extractInlineTags, mergeTags } from "../utils/tags";
-import { uniqueTags } from "../utils/tags";
+import { extractInlineTags, mergeTags, normalizeTag, replaceInlineTag, uniqueTags } from "../utils/tags";
 import { parseCaptureFile, serializeCaptureFile } from "../utils/frontmatter";
 import { formatCaptureForAppend, formatDailySummaryBlock, upsertDailySummaryBlock } from "../utils/markdown";
 
@@ -27,7 +27,13 @@ export class CaptureService {
     const now = new Date();
     const settings = this.getSettings();
     const { id, path } = await this.createUniquePath(settings.captureFolder, now, createShortId());
-    const bodyMarkdown = input.bodyMarkdown.trim();
+    const bodyMarkdown = applyCaptureTemplate(
+      input.bodyMarkdown.trim(),
+      input.type,
+      input.source?.type ?? "manual",
+      input.source?.url,
+      settings
+    );
     const item: CaptureItem = {
       id,
       createdAt: now.toISOString(),
@@ -146,6 +152,42 @@ export class CaptureService {
     new Notice(`已将 ${captures.length} 条记录改为${type === "task" ? "任务" : "笔记"}`);
   }
 
+  async renameTag(oldTag: string, newTag: string): Promise<void> {
+    const from = normalizeTag(oldTag);
+    const to = normalizeTag(newTag);
+    if (!from || !to || from.toLocaleLowerCase() === to.toLocaleLowerCase()) return;
+
+    const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, from));
+    await Promise.all(
+      matching.map(async (capture) => {
+        const updatedTags = uniqueTags(capture.tags.map((tag) => sameTag(tag, from) ? to : tag));
+        await this.rewriteCapture(capture, {
+          bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, from, to),
+          tags: updatedTags
+        });
+      })
+    );
+
+    new Notice(`已将 #${from} 重命名为 #${to}`);
+  }
+
+  async deleteTag(tag: string): Promise<void> {
+    const target = normalizeTag(tag);
+    if (!target) return;
+
+    const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, target));
+    await Promise.all(
+      matching.map(async (capture) => {
+        await this.rewriteCapture(capture, {
+          bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, target),
+          tags: capture.tags.filter((current) => !sameTag(current, target))
+        });
+      })
+    );
+
+    new Notice(`已删除 #${target}`);
+  }
+
   async appendToFile(captures: CaptureItem[], target: TFile): Promise<void> {
     if (captures.length === 0) return;
 
@@ -226,6 +268,23 @@ export class CaptureService {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       update(frontmatter as Record<string, unknown>);
     });
+    await this.index.updateFile(file);
+  }
+
+  private async rewriteCapture(
+    capture: CaptureItem,
+    patch: Partial<Pick<CaptureItem, "bodyMarkdown" | "tags" | "type" | "taskStatus" | "status" | "pinned">>
+  ): Promise<void> {
+    const file = this.requireFile(capture.path);
+    if (!file) return;
+
+    const updated: CaptureItem = {
+      ...capture,
+      ...patch,
+      updatedAt: new Date().toISOString()
+    };
+    updated.tags = uniqueTags(updated.tags);
+    await this.app.vault.process(file, () => serializeCaptureFile(updated));
     await this.index.updateFile(file);
   }
 
@@ -337,4 +396,55 @@ function frontmatterTags(value: unknown): string[] {
     return uniqueTags([value]);
   }
   return [];
+}
+
+function applyCaptureTemplate(
+  rawContent: string,
+  type: CaptureType,
+  sourceType: CaptureSourceType,
+  sourceUrl: string | undefined,
+  settings: LocalCaptureSettings
+): string {
+  const template =
+    sourceType === "clipboard"
+      ? settings.captureTemplates.clipboard
+      : sourceType === "uri"
+        ? settings.captureTemplates.uri
+        : type === "task"
+          ? settings.captureTemplates.task
+          : settings.captureTemplates.note;
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 5);
+  const result = replaceToken(
+    replaceToken(
+      replaceToken(
+        replaceToken(
+          replaceToken(template, "{{content}}", rawContent),
+          "{{date}}",
+          date
+        ),
+        "{{time}}",
+        time
+      ),
+      "{{datetime}}",
+      now.toISOString()
+    ),
+    "{{source_url}}",
+    sourceUrl ?? ""
+  );
+
+  return result.trim();
+}
+
+function replaceToken(value: string, token: string, replacement: string): string {
+  return value.split(token).join(replacement);
+}
+
+function hasTag(tags: string[], tag: string): boolean {
+  return tags.some((current) => sameTag(current, tag));
+}
+
+function sameTag(a: string, b: string): boolean {
+  return normalizeTag(a).toLocaleLowerCase() === normalizeTag(b).toLocaleLowerCase();
 }

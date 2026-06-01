@@ -31,6 +31,22 @@ Use this checklist before tagging a public test release.
 - Run the Local Capture diagnostics command and confirm it reports no issues.
 - Run `obsidian://local-capture?text=hello%20%23qa&type=note` from the OS or browser.
 
+## ob-dev Regression
+
+For the local `ob-dev` vault, run:
+
+```bash
+npm run qa:vault -- "D:/Documents/Projects/ob-dev"
+```
+
+Then use Obsidian CLI to verify:
+
+```bash
+Obsidian.com vault=ob-dev plugin id=local-capture
+Obsidian.com vault=ob-dev commands filter=local-capture
+Obsidian.com vault=ob-dev dev:errors
+```
+
 ## Mobile Basics
 
 - Confirm the sidebar view opens on mobile.

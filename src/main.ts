@@ -4,9 +4,11 @@ import {
   DEFAULT_SETTINGS,
   LocalCaptureSettingTab,
   LocalCaptureSettings,
+  normalizeCaptureTemplates,
   normalizeCaptureFolder,
   normalizeFolder,
-  normalizeSavedQueries
+  normalizeSavedQueries,
+  normalizeTagColors
 } from "./settings";
 import { CaptureIndex } from "./services/CaptureIndex";
 import { CaptureService } from "./services/CaptureService";
@@ -17,6 +19,7 @@ import { LocalCaptureView } from "./view";
 import { todayDayKey } from "./utils/dates";
 import { BatchTagModal } from "./modals/BatchTagModal";
 import { BatchTypeModal } from "./modals/BatchTypeModal";
+import { TagManagementModal } from "./modals/TagManagementModal";
 
 export default class LocalCapturePlugin extends Plugin {
   settings!: LocalCaptureSettings;
@@ -63,7 +66,9 @@ export default class LocalCapturePlugin extends Plugin {
         normalizeFolder(loaded?.dailySummaryFolder ?? DEFAULT_SETTINGS.dailySummaryFolder) ||
         DEFAULT_SETTINGS.dailySummaryFolder,
       dailyNoteFolder: normalizeFolder(loaded?.dailyNoteFolder ?? DEFAULT_SETTINGS.dailyNoteFolder),
-      savedQueries: normalizeSavedQueries(loaded?.savedQueries)
+      savedQueries: normalizeSavedQueries(loaded?.savedQueries),
+      tagColors: normalizeTagColors(loaded?.tagColors),
+      captureTemplates: normalizeCaptureTemplates(loaded?.captureTemplates)
     };
   }
 
@@ -73,6 +78,8 @@ export default class LocalCapturePlugin extends Plugin {
       normalizeFolder(this.settings.dailySummaryFolder) || DEFAULT_SETTINGS.dailySummaryFolder;
     this.settings.dailyNoteFolder = normalizeFolder(this.settings.dailyNoteFolder);
     this.settings.savedQueries = normalizeSavedQueries(this.settings.savedQueries);
+    this.settings.tagColors = normalizeTagColors(this.settings.tagColors);
+    this.settings.captureTemplates = normalizeCaptureTemplates(this.settings.captureTemplates);
     await this.saveData(this.settings);
   }
 
@@ -128,6 +135,18 @@ export default class LocalCapturePlugin extends Plugin {
     }
 
     new BatchTypeModal(this, captures).open();
+  }
+
+  openTagManagementModal(): void {
+    new TagManagementModal(this).open();
+  }
+
+  async setTagColor(tag: string, color: string): Promise<void> {
+    this.settings.tagColors = {
+      ...this.settings.tagColors,
+      [tag]: color
+    };
+    await this.saveSettings();
   }
 
   async saveQuery(name: string, filter: CaptureFilterState): Promise<SavedQuery> {
@@ -251,6 +270,12 @@ export default class LocalCapturePlugin extends Plugin {
       id: "batch-type-selected-captures",
       name: "批量修改选中记录类型",
       callback: () => this.openBatchTypeModal(this.getSelectedCaptures())
+    });
+
+    this.addCommand({
+      id: "manage-local-capture-tags",
+      name: "管理 Local Capture 标签",
+      callback: () => this.openTagManagementModal()
     });
 
     this.addCommand({

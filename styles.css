@@ -166,6 +166,32 @@
   border-radius: 6px;
 }
 
+.local-capture-tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 58px;
+  overflow: hidden;
+}
+
+.local-capture-tag-cloud button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  max-width: 160px;
+  padding: 0 7px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  color: var(--text-accent);
+  background: var(--background-primary);
+  font-size: var(--font-ui-smaller);
+}
+
+.local-capture-tag-cloud button span {
+  color: var(--text-faint);
+}
+
 .local-capture-heatmap {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(10px, 1fr));
@@ -406,6 +432,25 @@
   overflow: auto;
 }
 
+.local-capture-column-controls {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+
+.local-capture-column-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
 .local-capture-table {
   width: 100%;
   min-width: 720px;
@@ -430,6 +475,13 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.local-capture-table th button {
+  height: 24px;
+  padding: 0 5px;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 .local-capture-table th:first-child,
@@ -474,6 +526,29 @@
   min-height: 92px;
 }
 
+.local-capture-tag-manager-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 1fr) 54px 34px minmax(190px, 1.5fr);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.local-capture-tag-manager-row .setting-item {
+  padding: 0;
+  border: 0;
+}
+
+.local-capture-tag-manager-row .setting-item-info {
+  display: none;
+}
+
+.local-capture-tag-count {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
 @media (max-width: 520px) {
   .local-capture-composer,
   .local-capture-tools,
@@ -502,5 +577,9 @@
 
   .local-capture-saved-query-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .local-capture-tag-manager-row {
+    grid-template-columns: 1fr;
   }
 }

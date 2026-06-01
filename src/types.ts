@@ -33,6 +33,15 @@ export interface CreateCaptureInput {
   source?: CaptureSource;
 }
 
+export interface CaptureTemplates {
+  note: string;
+  task: string;
+  clipboard: string;
+  uri: string;
+}
+
+export type TagColorMap = Record<string, string>;
+
 export interface CaptureFilterState {
   query: string;
   status: CaptureStatus | "all";

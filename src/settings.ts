@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting, normalizePath } from "obsidian";
 import type LocalCapturePlugin from "./main";
 import { DEFAULT_CAPTURE_FOLDER, DEFAULT_DAILY_SUMMARY_FOLDER } from "./constants";
-import { CaptureStatus, CaptureType, DailySummaryTarget, SavedQuery } from "./types";
+import { CaptureStatus, CaptureTemplates, CaptureType, DailySummaryTarget, SavedQuery, TagColorMap } from "./types";
 
 export interface LocalCaptureSettings {
   captureFolder: string;
@@ -13,6 +13,8 @@ export interface LocalCaptureSettings {
   dailySummaryFolder: string;
   dailyNoteFolder: string;
   savedQueries: SavedQuery[];
+  tagColors: TagColorMap;
+  captureTemplates: CaptureTemplates;
 }
 
 export const DEFAULT_SETTINGS: LocalCaptureSettings = {
@@ -24,7 +26,14 @@ export const DEFAULT_SETTINGS: LocalCaptureSettings = {
   dailySummaryTarget: "generated",
   dailySummaryFolder: DEFAULT_DAILY_SUMMARY_FOLDER,
   dailyNoteFolder: "",
-  savedQueries: []
+  savedQueries: [],
+  tagColors: {},
+  captureTemplates: {
+    note: "{{content}}",
+    task: "{{content}}",
+    clipboard: "{{content}}",
+    uri: "{{content}}\n\n{{source_url}}"
+  }
 };
 
 export function normalizeCaptureFolder(folder: string): string {
@@ -61,6 +70,31 @@ export function normalizeSavedQueries(value: unknown): SavedQuery[] {
             : new Date().toISOString()
       };
     });
+}
+
+export function normalizeTagColors(value: unknown): TagColorMap {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const result: TagColorMap = {};
+  for (const [tag, color] of Object.entries(value)) {
+    if (/^#[0-9a-fA-F]{6}$/.test(String(color))) {
+      result[tag] = String(color);
+    }
+  }
+  return result;
+}
+
+export function normalizeCaptureTemplates(value: unknown): CaptureTemplates {
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value as Partial<CaptureTemplates> : {};
+  return {
+    note: typeof input.note === "string" && input.note.trim() ? input.note : DEFAULT_SETTINGS.captureTemplates.note,
+    task: typeof input.task === "string" && input.task.trim() ? input.task : DEFAULT_SETTINGS.captureTemplates.task,
+    clipboard:
+      typeof input.clipboard === "string" && input.clipboard.trim()
+        ? input.clipboard
+        : DEFAULT_SETTINGS.captureTemplates.clipboard,
+    uri: typeof input.uri === "string" && input.uri.trim() ? input.uri : DEFAULT_SETTINGS.captureTemplates.uri
+  };
 }
 
 function normalizeQueryStatus(status: unknown): CaptureStatus | "all" {
@@ -119,6 +153,12 @@ export class LocalCaptureSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    containerEl.createEl("h3", { text: "捕获模板" });
+    addTemplateSetting(containerEl, "笔记模板", "创建普通笔记时使用。", "note", this.plugin);
+    addTemplateSetting(containerEl, "任务模板", "创建任务时使用。", "task", this.plugin);
+    addTemplateSetting(containerEl, "剪贴板模板", "从剪贴板创建记录时使用。", "clipboard", this.plugin);
+    addTemplateSetting(containerEl, "URI 模板", "从 URI 捕获创建记录时使用。", "uri", this.plugin);
 
     new Setting(containerEl)
       .setName("时间线加载数量")
@@ -192,4 +232,28 @@ export class LocalCaptureSettingTab extends PluginSettingTab {
           });
       });
   }
+}
+
+function addTemplateSetting(
+  containerEl: HTMLElement,
+  name: string,
+  desc: string,
+  key: keyof CaptureTemplates,
+  plugin: LocalCapturePlugin
+): void {
+  new Setting(containerEl)
+    .setName(name)
+    .setDesc(`${desc} 可用变量：{{content}}、{{date}}、{{time}}、{{datetime}}、{{source_url}}。`)
+    .addTextArea((text) => {
+      text
+        .setValue(plugin.settings.captureTemplates[key])
+        .onChange(async (value) => {
+          plugin.settings.captureTemplates = {
+            ...plugin.settings.captureTemplates,
+            [key]: value || DEFAULT_SETTINGS.captureTemplates[key]
+          };
+          await plugin.saveSettings();
+        });
+      text.inputEl.rows = 3;
+    });
 }

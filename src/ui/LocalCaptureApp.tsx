@@ -20,13 +20,14 @@ import {
   Star,
   Search,
   Send,
+  SlidersHorizontal,
   Tags,
   Table2,
   Trash2,
   X
 } from "lucide-react";
 import { Notice } from "obsidian";
-import { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type LocalCapturePlugin from "../main";
 import { CaptureItem, CaptureStatus, CaptureType, SavedQuery } from "../types";
@@ -39,6 +40,9 @@ interface LocalCaptureAppProps {
 
 type StatusFilter = CaptureStatus | "all";
 type ViewMode = "timeline" | "table";
+type TableSortKey = "createdAt" | "type" | "status" | "title" | "tags";
+type SortDirection = "asc" | "desc";
+type TableColumn = "time" | "type" | "status" | "title" | "tags";
 
 export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
   const [items, setItems] = useState<CaptureItem[]>(() => plugin.index.getItems());
@@ -52,6 +56,11 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
   const [savedQueryName, setSavedQueryName] = useState("");
   const [savedQueryId, setSavedQueryId] = useState("");
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>(() => plugin.settings.savedQueries);
+  const [tableSortKey, setTableSortKey] = useState<TableSortKey>("createdAt");
+  const [tableSortDirection, setTableSortDirection] = useState<SortDirection>("desc");
+  const [visibleColumns, setVisibleColumns] = useState<Set<TableColumn>>(
+    () => new Set(["time", "type", "status", "title", "tags"])
+  );
 
   useEffect(() => {
     return plugin.index.subscribe(() => {
@@ -89,10 +98,26 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
     return fuse.search(query.trim()).map((result) => result.item);
   }, [items, query, selectedDay, status]);
 
+  const tableItems = useMemo(
+    () => sortTableItems(filteredItems, tableSortKey, tableSortDirection),
+    [filteredItems, tableSortDirection, tableSortKey]
+  );
+
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.includes(item.id)),
     [items, selectedIds]
   );
+
+  const tagCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      if (item.status === "deleted") continue;
+      for (const tag of item.tags) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [items]);
 
   async function submitDraft(): Promise<void> {
     const bodyMarkdown = draft.trim();
@@ -158,6 +183,30 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
     setQuery(saved.query);
     setStatus(saved.status);
     setSelectedDay(saved.selectedDay);
+  }
+
+  function toggleTableColumn(column: TableColumn): void {
+    setVisibleColumns((current) => {
+      const next = new Set(current);
+      if (next.has(column) && next.size > 1) {
+        next.delete(column);
+      } else {
+        next.add(column);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible(): void {
+    const visibleIds = (viewMode === "table" ? tableItems : filteredItems).map((item) => item.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+    setSelectedIds((current) => {
+      if (allSelected) {
+        const visible = new Set(visibleIds);
+        return current.filter((id) => !visible.has(id));
+      }
+      return [...new Set([...current, ...visibleIds])];
+    });
   }
 
   return (
@@ -264,6 +313,23 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
           </button>
         </div>
 
+        {tagCounts.length > 0 ? (
+          <div className="local-capture-tag-cloud" aria-label="标签列表">
+            {tagCounts.slice(0, 18).map(([tag, count]) => (
+              <button
+                key={tag}
+                type="button"
+                title={`筛选 #${tag}`}
+                style={tagColorStyle(plugin.settings.tagColors[tag])}
+                onClick={() => setQuery(`#${tag}`)}
+              >
+                #{tag}
+                <span>{count}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         <Heatmap
           items={items}
           days={plugin.settings.heatmapDays}
@@ -315,6 +381,22 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
             <Columns3 size={14} aria-hidden="true" />
             诊断
           </button>
+          <button
+            type="button"
+            title="标签管理"
+            onClick={() => plugin.openTagManagementModal()}
+          >
+            <Tags size={14} aria-hidden="true" />
+            标签
+          </button>
+          <button
+            type="button"
+            title="选择/取消当前结果"
+            onClick={toggleSelectAllVisible}
+          >
+            <SlidersHorizontal size={14} aria-hidden="true" />
+            选择结果
+          </button>
         </div>
       </section>
 
@@ -353,12 +435,26 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
           onToggleSelected={toggleSelected}
         />
       ) : (
-        <CaptureTable
+        <>
+          <TableColumnControls visibleColumns={visibleColumns} onToggle={toggleTableColumn} />
+          <CaptureTable
           plugin={plugin}
-          items={filteredItems}
+          items={tableItems}
           selectedIds={selectedIds}
           onToggleSelected={toggleSelected}
+          visibleColumns={visibleColumns}
+          sortKey={tableSortKey}
+          sortDirection={tableSortDirection}
+          onSort={(nextKey) => {
+            if (tableSortKey === nextKey) {
+              setTableSortDirection((current) => current === "asc" ? "desc" : "asc");
+            } else {
+              setTableSortKey(nextKey);
+              setTableSortDirection("asc");
+            }
+          }}
         />
+        </>
       )}
     </div>
   );
@@ -480,7 +576,46 @@ function Timeline({ plugin, items, selectedIds, onToggleSelected }: TimelineProp
   );
 }
 
-function CaptureTable({ plugin, items, selectedIds, onToggleSelected }: TimelineProps): JSX.Element {
+interface CaptureTableProps extends TimelineProps {
+  visibleColumns: Set<TableColumn>;
+  sortKey: TableSortKey;
+  sortDirection: SortDirection;
+  onSort: (key: TableSortKey) => void;
+}
+
+function TableColumnControls({
+  visibleColumns,
+  onToggle
+}: {
+  visibleColumns: Set<TableColumn>;
+  onToggle: (column: TableColumn) => void;
+}): JSX.Element {
+  return (
+    <div className="local-capture-column-controls" aria-label="表格列显示">
+      {tableColumns.map((column) => (
+        <label key={column.key}>
+          <input
+            type="checkbox"
+            checked={visibleColumns.has(column.key)}
+            onChange={() => onToggle(column.key)}
+          />
+          {column.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function CaptureTable({
+  plugin,
+  items,
+  selectedIds,
+  onToggleSelected,
+  visibleColumns,
+  sortKey,
+  sortDirection,
+  onSort
+}: CaptureTableProps): JSX.Element {
   if (items.length === 0) {
     return (
       <div className="local-capture-empty">
@@ -496,11 +631,11 @@ function CaptureTable({ plugin, items, selectedIds, onToggleSelected }: Timeline
         <thead>
           <tr>
             <th aria-label="选择" />
-            <th>时间</th>
-            <th>类型</th>
-            <th>状态</th>
-            <th>标题</th>
-            <th>标签</th>
+            {visibleColumns.has("time") ? <SortableHeader label="时间" sortKey="createdAt" activeKey={sortKey} direction={sortDirection} onSort={onSort} /> : null}
+            {visibleColumns.has("type") ? <SortableHeader label="类型" sortKey="type" activeKey={sortKey} direction={sortDirection} onSort={onSort} /> : null}
+            {visibleColumns.has("status") ? <SortableHeader label="状态" sortKey="status" activeKey={sortKey} direction={sortDirection} onSort={onSort} /> : null}
+            {visibleColumns.has("title") ? <SortableHeader label="标题" sortKey="title" activeKey={sortKey} direction={sortDirection} onSort={onSort} /> : null}
+            {visibleColumns.has("tags") ? <SortableHeader label="标签" sortKey="tags" activeKey={sortKey} direction={sortDirection} onSort={onSort} /> : null}
             <th aria-label="操作" />
           </tr>
         </thead>
@@ -514,15 +649,15 @@ function CaptureTable({ plugin, items, selectedIds, onToggleSelected }: Timeline
                   onChange={() => onToggleSelected(item.id)}
                 />
               </td>
-              <td>{formatDisplayDateTime(item.createdAt)}</td>
-              <td>{item.type === "task" ? "任务" : "笔记"}</td>
-              <td>{statusText(item.status)}</td>
-              <td>
+              {visibleColumns.has("time") ? <td>{formatDisplayDateTime(item.createdAt)}</td> : null}
+              {visibleColumns.has("type") ? <td>{item.type === "task" ? "任务" : "笔记"}</td> : null}
+              {visibleColumns.has("status") ? <td>{statusText(item.status)}</td> : null}
+              {visibleColumns.has("title") ? <td>
                 <button type="button" onClick={() => void plugin.openCaptureFile(item)}>
                   {item.title ?? "未命名记录"}
                 </button>
-              </td>
-              <td>{item.tags.map((tag) => `#${tag}`).join(" ")}</td>
+              </td> : null}
+              {visibleColumns.has("tags") ? <td>{item.tags.map((tag) => `#${tag}`).join(" ")}</td> : null}
               <td>
                 <button type="button" title="发送到文件" onClick={() => void plugin.pickTargetAndSend([item])}>
                   <Send size={14} aria-hidden="true" />
@@ -533,6 +668,29 @@ function CaptureTable({ plugin, items, selectedIds, onToggleSelected }: Timeline
         </tbody>
       </table>
     </div>
+  );
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort
+}: {
+  label: string;
+  sortKey: TableSortKey;
+  activeKey: TableSortKey;
+  direction: SortDirection;
+  onSort: (key: TableSortKey) => void;
+}): JSX.Element {
+  const suffix = activeKey === sortKey ? (direction === "asc" ? " ↑" : " ↓") : "";
+  return (
+    <th>
+      <button type="button" onClick={() => onSort(sortKey)}>
+        {label}{suffix}
+      </button>
+    </th>
   );
 }
 
@@ -698,4 +856,35 @@ function buildDefaultQueryName(query: string, status: StatusFilter, selectedDay?
   ].filter(Boolean);
 
   return parts.join(" · ") || "当前筛选";
+}
+
+const tableColumns: Array<{ key: TableColumn; label: string }> = [
+  { key: "time", label: "时间" },
+  { key: "type", label: "类型" },
+  { key: "status", label: "状态" },
+  { key: "title", label: "标题" },
+  { key: "tags", label: "标签" }
+];
+
+function sortTableItems(items: CaptureItem[], key: TableSortKey, direction: SortDirection): CaptureItem[] {
+  const multiplier = direction === "asc" ? 1 : -1;
+  return [...items].sort((a, b) => multiplier * compareTableItems(a, b, key));
+}
+
+function compareTableItems(a: CaptureItem, b: CaptureItem, key: TableSortKey): number {
+  if (key === "createdAt") {
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  }
+  if (key === "tags") {
+    return a.tags.join(" ").localeCompare(b.tags.join(" "));
+  }
+  return String(a[key] ?? "").localeCompare(String(b[key] ?? ""));
+}
+
+function tagColorStyle(color: string | undefined): CSSProperties | undefined {
+  if (!color) return undefined;
+  return {
+    borderColor: color,
+    color
+  };
 }

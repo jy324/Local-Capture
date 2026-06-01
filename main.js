@@ -7285,7 +7285,7 @@ __export(main_exports, {
   default: () => LocalCapturePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // src/constants.ts
 var VIEW_TYPE_LOCAL_CAPTURE = "local-capture-view";
@@ -7304,7 +7304,14 @@ var DEFAULT_SETTINGS = {
   dailySummaryTarget: "generated",
   dailySummaryFolder: DEFAULT_DAILY_SUMMARY_FOLDER,
   dailyNoteFolder: "",
-  savedQueries: []
+  savedQueries: [],
+  tagColors: {},
+  captureTemplates: {
+    note: "{{content}}",
+    task: "{{content}}",
+    clipboard: "{{content}}",
+    uri: "{{content}}\n\n{{source_url}}"
+  }
 };
 function normalizeCaptureFolder(folder) {
   const trimmed = folder.trim() || DEFAULT_CAPTURE_FOLDER;
@@ -7328,6 +7335,25 @@ function normalizeSavedQueries(value) {
       createdAt: typeof query.createdAt === "string" && query.createdAt ? query.createdAt : (/* @__PURE__ */ new Date()).toISOString()
     };
   });
+}
+function normalizeTagColors(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result = {};
+  for (const [tag, color] of Object.entries(value)) {
+    if (/^#[0-9a-fA-F]{6}$/.test(String(color))) {
+      result[tag] = String(color);
+    }
+  }
+  return result;
+}
+function normalizeCaptureTemplates(value) {
+  const input = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    note: typeof input.note === "string" && input.note.trim() ? input.note : DEFAULT_SETTINGS.captureTemplates.note,
+    task: typeof input.task === "string" && input.task.trim() ? input.task : DEFAULT_SETTINGS.captureTemplates.task,
+    clipboard: typeof input.clipboard === "string" && input.clipboard.trim() ? input.clipboard : DEFAULT_SETTINGS.captureTemplates.clipboard,
+    uri: typeof input.uri === "string" && input.uri.trim() ? input.uri : DEFAULT_SETTINGS.captureTemplates.uri
+  };
 }
 function normalizeQueryStatus(status) {
   if (status === "active" || status === "archived" || status === "deleted" || status === "all") {
@@ -7363,6 +7389,11 @@ var LocalCaptureSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       });
     });
+    containerEl.createEl("h3", { text: "\u6355\u83B7\u6A21\u677F" });
+    addTemplateSetting(containerEl, "\u7B14\u8BB0\u6A21\u677F", "\u521B\u5EFA\u666E\u901A\u7B14\u8BB0\u65F6\u4F7F\u7528\u3002", "note", this.plugin);
+    addTemplateSetting(containerEl, "\u4EFB\u52A1\u6A21\u677F", "\u521B\u5EFA\u4EFB\u52A1\u65F6\u4F7F\u7528\u3002", "task", this.plugin);
+    addTemplateSetting(containerEl, "\u526A\u8D34\u677F\u6A21\u677F", "\u4ECE\u526A\u8D34\u677F\u521B\u5EFA\u8BB0\u5F55\u65F6\u4F7F\u7528\u3002", "clipboard", this.plugin);
+    addTemplateSetting(containerEl, "URI \u6A21\u677F", "\u4ECE URI \u6355\u83B7\u521B\u5EFA\u8BB0\u5F55\u65F6\u4F7F\u7528\u3002", "uri", this.plugin);
     new import_obsidian.Setting(containerEl).setName("\u65F6\u95F4\u7EBF\u52A0\u8F7D\u6570\u91CF").setDesc("\u9996\u6B21\u6E32\u67D3\u7684\u8BB0\u5F55\u6570\u91CF\uFF1B\u6EDA\u52A8\u4ECD\u4F1A\u4F7F\u7528\u865A\u62DF\u5217\u8868\u4FDD\u6301\u6027\u80FD\u3002").addText((text) => {
       text.setValue(String(this.plugin.settings.timelinePageSize)).onChange(async (value) => {
         const parsed = Number.parseInt(value, 10);
@@ -7398,6 +7429,18 @@ var LocalCaptureSettingTab = class extends import_obsidian.PluginSettingTab {
     });
   }
 };
+function addTemplateSetting(containerEl, name, desc, key, plugin) {
+  new import_obsidian.Setting(containerEl).setName(name).setDesc(`${desc} \u53EF\u7528\u53D8\u91CF\uFF1A{{content}}\u3001{{date}}\u3001{{time}}\u3001{{datetime}}\u3001{{source_url}}\u3002`).addTextArea((text) => {
+    text.setValue(plugin.settings.captureTemplates[key]).onChange(async (value) => {
+      plugin.settings.captureTemplates = {
+        ...plugin.settings.captureTemplates,
+        [key]: value || DEFAULT_SETTINGS.captureTemplates[key]
+      };
+      await plugin.saveSettings();
+    });
+    text.inputEl.rows = 3;
+  });
+}
 
 // src/services/CaptureIndex.ts
 var import_obsidian2 = require("obsidian");
@@ -7429,6 +7472,20 @@ function extractInlineTags(markdown) {
 }
 function mergeTags(...tagGroups) {
   return uniqueTags(tagGroups.flat());
+}
+function replaceInlineTag(markdown, oldTag, newTag) {
+  const normalizedOld = normalizeTag(oldTag);
+  if (!normalizedOld) return markdown;
+  const replacement = newTag ? `#${normalizeTag(newTag)}` : "";
+  const escapedOld = escapeRegExp(normalizedOld);
+  const pattern = new RegExp(`(^|[\\s([{>])#${escapedOld}(?=$|[\\s\\])},.!?:;\uFF0C\u3002\uFF01\uFF1F\u3001])`, "giu");
+  return markdown.replace(pattern, (_match, prefix) => {
+    if (!replacement) return prefix;
+    return `${prefix}${replacement}`;
+  });
+}
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // src/utils/frontmatter.ts
@@ -7770,8 +7827,8 @@ function formatDailySummaryBlock(dayKey, captures) {
 function upsertDailySummaryBlock(current, dayKey, block) {
   const start = summaryStartMarker(dayKey);
   const end = summaryEndMarker(dayKey);
-  const escapedStart = escapeRegExp(start);
-  const escapedEnd = escapeRegExp(end);
+  const escapedStart = escapeRegExp2(start);
+  const escapedEnd = escapeRegExp2(end);
   const existingBlock = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}\\n?`);
   if (existingBlock.test(current)) {
     return current.replace(existingBlock, block);
@@ -7790,7 +7847,7 @@ function summaryEndMarker(dayKey) {
 function taskStatusText(capture) {
   return capture.taskStatus === "done" ? "\u4EFB\u52A1\u5DF2\u5B8C\u6210" : "\u4EFB\u52A1\u5F85\u529E";
 }
-function escapeRegExp(value) {
+function escapeRegExp2(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -7805,7 +7862,13 @@ var CaptureService = class {
     const now = /* @__PURE__ */ new Date();
     const settings = this.getSettings();
     const { id, path } = await this.createUniquePath(settings.captureFolder, now, createShortId());
-    const bodyMarkdown = input.bodyMarkdown.trim();
+    const bodyMarkdown = applyCaptureTemplate(
+      input.bodyMarkdown.trim(),
+      input.type,
+      input.source?.type ?? "manual",
+      input.source?.url,
+      settings
+    );
     const item = {
       id,
       createdAt: now.toISOString(),
@@ -7906,6 +7969,36 @@ var CaptureService = class {
     );
     new import_obsidian3.Notice(`\u5DF2\u5C06 ${captures.length} \u6761\u8BB0\u5F55\u6539\u4E3A${type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0"}`);
   }
+  async renameTag(oldTag, newTag) {
+    const from = normalizeTag(oldTag);
+    const to = normalizeTag(newTag);
+    if (!from || !to || from.toLocaleLowerCase() === to.toLocaleLowerCase()) return;
+    const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, from));
+    await Promise.all(
+      matching.map(async (capture) => {
+        const updatedTags = uniqueTags(capture.tags.map((tag) => sameTag(tag, from) ? to : tag));
+        await this.rewriteCapture(capture, {
+          bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, from, to),
+          tags: updatedTags
+        });
+      })
+    );
+    new import_obsidian3.Notice(`\u5DF2\u5C06 #${from} \u91CD\u547D\u540D\u4E3A #${to}`);
+  }
+  async deleteTag(tag) {
+    const target = normalizeTag(tag);
+    if (!target) return;
+    const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, target));
+    await Promise.all(
+      matching.map(async (capture) => {
+        await this.rewriteCapture(capture, {
+          bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, target),
+          tags: capture.tags.filter((current) => !sameTag(current, target))
+        });
+      })
+    );
+    new import_obsidian3.Notice(`\u5DF2\u5220\u9664 #${target}`);
+  }
   async appendToFile(captures, target) {
     if (captures.length === 0) return;
     const payload = captures.map(formatCaptureForAppend).join("");
@@ -7964,6 +8057,18 @@ var CaptureService = class {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
       update(frontmatter);
     });
+    await this.index.updateFile(file);
+  }
+  async rewriteCapture(capture, patch) {
+    const file = this.requireFile(capture.path);
+    if (!file) return;
+    const updated = {
+      ...capture,
+      ...patch,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    updated.tags = uniqueTags(updated.tags);
+    await this.app.vault.process(file, () => serializeCaptureFile(updated));
     await this.index.updateFile(file);
   }
   async createUniquePath(folder, createdAt, firstId) {
@@ -8049,6 +8154,39 @@ function frontmatterTags(value) {
     return uniqueTags([value]);
   }
   return [];
+}
+function applyCaptureTemplate(rawContent, type, sourceType, sourceUrl, settings) {
+  const template = sourceType === "clipboard" ? settings.captureTemplates.clipboard : sourceType === "uri" ? settings.captureTemplates.uri : type === "task" ? settings.captureTemplates.task : settings.captureTemplates.note;
+  const now = /* @__PURE__ */ new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 5);
+  const result = replaceToken(
+    replaceToken(
+      replaceToken(
+        replaceToken(
+          replaceToken(template, "{{content}}", rawContent),
+          "{{date}}",
+          date
+        ),
+        "{{time}}",
+        time
+      ),
+      "{{datetime}}",
+      now.toISOString()
+    ),
+    "{{source_url}}",
+    sourceUrl ?? ""
+  );
+  return result.trim();
+}
+function replaceToken(value, token, replacement) {
+  return value.split(token).join(replacement);
+}
+function hasTag(tags, tag) {
+  return tags.some((current) => sameTag(current, tag));
+}
+function sameTag(a, b) {
+  return normalizeTag(a).toLocaleLowerCase() === normalizeTag(b).toLocaleLowerCase();
 }
 
 // src/modals/QuickCaptureModal.ts
@@ -10363,6 +10501,19 @@ var Send = createLucideIcon("Send", [
   ["path", { d: "m21.854 2.147-10.94 10.939", key: "12cjpa" }]
 ]);
 
+// node_modules/lucide-react/dist/esm/icons/sliders-horizontal.js
+var SlidersHorizontal = createLucideIcon("SlidersHorizontal", [
+  ["line", { x1: "21", x2: "14", y1: "4", y2: "4", key: "obuewd" }],
+  ["line", { x1: "10", x2: "3", y1: "4", y2: "4", key: "1q6298" }],
+  ["line", { x1: "21", x2: "12", y1: "12", y2: "12", key: "1iu8h1" }],
+  ["line", { x1: "8", x2: "3", y1: "12", y2: "12", key: "ntss68" }],
+  ["line", { x1: "21", x2: "16", y1: "20", y2: "20", key: "14d8ph" }],
+  ["line", { x1: "12", x2: "3", y1: "20", y2: "20", key: "m0wm8r" }],
+  ["line", { x1: "14", x2: "14", y1: "2", y2: "6", key: "14e1ph" }],
+  ["line", { x1: "8", x2: "8", y1: "10", y2: "14", key: "1i6ji0" }],
+  ["line", { x1: "16", x2: "16", y1: "18", y2: "22", key: "1lctlv" }]
+]);
+
 // node_modules/lucide-react/dist/esm/icons/star.js
 var Star = createLucideIcon("Star", [
   [
@@ -11747,6 +11898,11 @@ function LocalCaptureApp({ plugin }) {
   const [savedQueryName, setSavedQueryName] = (0, import_react4.useState)("");
   const [savedQueryId, setSavedQueryId] = (0, import_react4.useState)("");
   const [savedQueries, setSavedQueries] = (0, import_react4.useState)(() => plugin.settings.savedQueries);
+  const [tableSortKey, setTableSortKey] = (0, import_react4.useState)("createdAt");
+  const [tableSortDirection, setTableSortDirection] = (0, import_react4.useState)("desc");
+  const [visibleColumns, setVisibleColumns] = (0, import_react4.useState)(
+    () => /* @__PURE__ */ new Set(["time", "type", "status", "title", "tags"])
+  );
   (0, import_react4.useEffect)(() => {
     return plugin.index.subscribe(() => {
       setItems(plugin.index.getItems());
@@ -11773,10 +11929,24 @@ function LocalCaptureApp({ plugin }) {
     });
     return fuse.search(query.trim()).map((result) => result.item);
   }, [items, query, selectedDay, status]);
+  const tableItems = (0, import_react4.useMemo)(
+    () => sortTableItems(filteredItems, tableSortKey, tableSortDirection),
+    [filteredItems, tableSortDirection, tableSortKey]
+  );
   const selectedItems = (0, import_react4.useMemo)(
     () => items.filter((item) => selectedIds.includes(item.id)),
     [items, selectedIds]
   );
+  const tagCounts = (0, import_react4.useMemo)(() => {
+    const counts = /* @__PURE__ */ new Map();
+    for (const item of items) {
+      if (item.status === "deleted") continue;
+      for (const tag of item.tags) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [items]);
   async function submitDraft() {
     const bodyMarkdown = draft.trim();
     if (!bodyMarkdown) return;
@@ -11831,6 +12001,28 @@ function LocalCaptureApp({ plugin }) {
     setQuery(saved.query);
     setStatus(saved.status);
     setSelectedDay(saved.selectedDay);
+  }
+  function toggleTableColumn(column) {
+    setVisibleColumns((current) => {
+      const next = new Set(current);
+      if (next.has(column) && next.size > 1) {
+        next.delete(column);
+      } else {
+        next.add(column);
+      }
+      return next;
+    });
+  }
+  function toggleSelectAllVisible() {
+    const visibleIds = (viewMode === "table" ? tableItems : filteredItems).map((item) => item.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+    setSelectedIds((current) => {
+      if (allSelected) {
+        const visible = new Set(visibleIds);
+        return current.filter((id) => !visible.has(id));
+      }
+      return [.../* @__PURE__ */ new Set([...current, ...visibleIds])];
+    });
   }
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-app", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "local-capture-composer", "aria-label": "\u5FEB\u901F\u8BB0\u5F55", children: [
@@ -11951,6 +12143,21 @@ function LocalCaptureApp({ plugin }) {
           }
         )
       ] }),
+      tagCounts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-tag-cloud", "aria-label": "\u6807\u7B7E\u5217\u8868", children: tagCounts.slice(0, 18).map(([tag, count]) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        "button",
+        {
+          type: "button",
+          title: `\u7B5B\u9009 #${tag}`,
+          style: tagColorStyle(plugin.settings.tagColors[tag]),
+          onClick: () => setQuery(`#${tag}`),
+          children: [
+            "#",
+            tag,
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: count })
+          ]
+        },
+        tag
+      )) }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
         Heatmap,
         {
@@ -12020,6 +12227,30 @@ function LocalCaptureApp({ plugin }) {
               "\u8BCA\u65AD"
             ]
           }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            title: "\u6807\u7B7E\u7BA1\u7406",
+            onClick: () => plugin.openTagManagementModal(),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Tags, { size: 14, "aria-hidden": "true" }),
+              "\u6807\u7B7E"
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            title: "\u9009\u62E9/\u53D6\u6D88\u5F53\u524D\u7ED3\u679C",
+            onClick: toggleSelectAllVisible,
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SlidersHorizontal, { size: 14, "aria-hidden": "true" }),
+              "\u9009\u62E9\u7ED3\u679C"
+            ]
+          }
         )
       ] })
     ] }),
@@ -12044,15 +12275,29 @@ function LocalCaptureApp({ plugin }) {
         selectedIds,
         onToggleSelected: toggleSelected
       }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      CaptureTable,
-      {
-        plugin,
-        items: filteredItems,
-        selectedIds,
-        onToggleSelected: toggleSelected
-      }
-    )
+    ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(TableColumnControls, { visibleColumns, onToggle: toggleTableColumn }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        CaptureTable,
+        {
+          plugin,
+          items: tableItems,
+          selectedIds,
+          onToggleSelected: toggleSelected,
+          visibleColumns,
+          sortKey: tableSortKey,
+          sortDirection: tableSortDirection,
+          onSort: (nextKey) => {
+            if (tableSortKey === nextKey) {
+              setTableSortDirection((current) => current === "asc" ? "desc" : "asc");
+            } else {
+              setTableSortKey(nextKey);
+              setTableSortDirection("asc");
+            }
+          }
+        }
+      )
+    ] })
   ] });
 }
 function StatusButton({ label, value, status, onChange }) {
@@ -12135,7 +12380,32 @@ function Timeline({ plugin, items, selectedIds, onToggleSelected }) {
     }
   ) });
 }
-function CaptureTable({ plugin, items, selectedIds, onToggleSelected }) {
+function TableColumnControls({
+  visibleColumns,
+  onToggle
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-column-controls", "aria-label": "\u8868\u683C\u5217\u663E\u793A", children: tableColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      "input",
+      {
+        type: "checkbox",
+        checked: visibleColumns.has(column.key),
+        onChange: () => onToggle(column.key)
+      }
+    ),
+    column.label
+  ] }, column.key)) });
+}
+function CaptureTable({
+  plugin,
+  items,
+  selectedIds,
+  onToggleSelected,
+  visibleColumns,
+  sortKey,
+  sortDirection,
+  onSort
+}) {
   if (items.length === 0) {
     return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-empty", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FileInput, { size: 28, "aria-hidden": "true" }),
@@ -12145,11 +12415,11 @@ function CaptureTable({ plugin, items, selectedIds, onToggleSelected }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("table", { className: "local-capture-table", children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("tr", { children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { "aria-label": "\u9009\u62E9" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u65F6\u95F4" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u7C7B\u578B" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u72B6\u6001" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u6807\u9898" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: "\u6807\u7B7E" }),
+      visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u65F6\u95F4", sortKey: "createdAt", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u7C7B\u578B", sortKey: "type", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u72B6\u6001", sortKey: "status", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u6807\u9898", sortKey: "title", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u6807\u7B7E", sortKey: "tags", activeKey: sortKey, direction: sortDirection, onSort }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { "aria-label": "\u64CD\u4F5C" })
     ] }) }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("tbody", { children: items.map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("tr", { className: selectedIds.includes(item.id) ? "is-selected" : "", children: [
@@ -12161,13 +12431,26 @@ function CaptureTable({ plugin, items, selectedIds, onToggleSelected }) {
           onChange: () => onToggleSelected(item.id)
         }
       ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: formatDisplayDateTime(item.createdAt) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: statusText(item.status) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", onClick: () => void plugin.openCaptureFile(item), children: item.title ?? "\u672A\u547D\u540D\u8BB0\u5F55" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: item.tags.map((tag) => `#${tag}`).join(" ") }),
+      visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: formatDisplayDateTime(item.createdAt) }) : null,
+      visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }) : null,
+      visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: statusText(item.status) }) : null,
+      visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", onClick: () => void plugin.openCaptureFile(item), children: item.title ?? "\u672A\u547D\u540D\u8BB0\u5F55" }) }) : null,
+      visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: item.tags.map((tag) => `#${tag}`).join(" ") }) : null,
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => void plugin.pickTargetAndSend([item]), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Send, { size: 14, "aria-hidden": "true" }) }) })
     ] }, item.id)) })
+  ] }) });
+}
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort
+}) {
+  const suffix = activeKey === sortKey ? direction === "asc" ? " \u2191" : " \u2193" : "";
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { type: "button", onClick: () => onSort(sortKey), children: [
+    label,
+    suffix
   ] }) });
 }
 function CaptureCard({ plugin, item, selected, onToggleSelected }) {
@@ -12276,6 +12559,33 @@ function buildDefaultQueryName(query, status, selectedDay) {
     query.trim() ? `"${query.trim()}"` : void 0
   ].filter(Boolean);
   return parts.join(" \xB7 ") || "\u5F53\u524D\u7B5B\u9009";
+}
+var tableColumns = [
+  { key: "time", label: "\u65F6\u95F4" },
+  { key: "type", label: "\u7C7B\u578B" },
+  { key: "status", label: "\u72B6\u6001" },
+  { key: "title", label: "\u6807\u9898" },
+  { key: "tags", label: "\u6807\u7B7E" }
+];
+function sortTableItems(items, key, direction) {
+  const multiplier = direction === "asc" ? 1 : -1;
+  return [...items].sort((a, b) => multiplier * compareTableItems(a, b, key));
+}
+function compareTableItems(a, b, key) {
+  if (key === "createdAt") {
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  }
+  if (key === "tags") {
+    return a.tags.join(" ").localeCompare(b.tags.join(" "));
+  }
+  return String(a[key] ?? "").localeCompare(String(b[key] ?? ""));
+}
+function tagColorStyle(color) {
+  if (!color) return void 0;
+  return {
+    borderColor: color,
+    color
+  };
 }
 
 // src/view.tsx
@@ -12392,8 +12702,78 @@ var BatchTypeModal = class extends import_obsidian10.Modal {
   }
 };
 
+// src/modals/TagManagementModal.ts
+var import_obsidian11 = require("obsidian");
+var TagManagementModal = class extends import_obsidian11.Modal {
+  constructor(plugin) {
+    super(plugin.app);
+    this.plugin = plugin;
+  }
+  onOpen() {
+    this.render();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("local-capture-modal");
+    contentEl.createEl("h2", { text: "\u6807\u7B7E\u7BA1\u7406" });
+    const counts = collectTagCounts(this.plugin);
+    if (counts.length === 0) {
+      contentEl.createEl("p", { text: "\u6682\u65E0\u6807\u7B7E\u3002", cls: "local-capture-modal-desc" });
+      return;
+    }
+    for (const [tag, count] of counts) {
+      const row = contentEl.createDiv({ cls: "local-capture-tag-manager-row" });
+      row.createEl("span", { text: `#${tag}` });
+      row.createEl("span", { text: `${count} \u6761`, cls: "local-capture-tag-count" });
+      const color = row.createEl("input", {
+        attr: {
+          type: "color",
+          value: this.plugin.settings.tagColors[tag] ?? "#7c8cff",
+          title: "\u6807\u7B7E\u989C\u8272"
+        }
+      });
+      color.addEventListener("change", () => {
+        void this.plugin.setTagColor(tag, color.value);
+      });
+      new import_obsidian11.Setting(row).addText((text) => {
+        text.setPlaceholder("\u65B0\u6807\u7B7E\u540D");
+        text.inputEl.addClass("local-capture-tag-rename-input");
+      }).addButton((button) => {
+        button.setButtonText("\u91CD\u547D\u540D").onClick(async () => {
+          const input = row.querySelector(".local-capture-tag-rename-input");
+          const next = normalizeTag(input?.value ?? "");
+          if (!next) return;
+          await this.plugin.captureService.renameTag(tag, next);
+          await this.plugin.setTagColor(next, this.plugin.settings.tagColors[tag] ?? "#7c8cff");
+          delete this.plugin.settings.tagColors[tag];
+          await this.plugin.saveSettings();
+          this.render();
+        });
+      }).addButton((button) => {
+        button.setButtonText("\u5220\u9664").onClick(async () => {
+          await this.plugin.captureService.deleteTag(tag);
+          delete this.plugin.settings.tagColors[tag];
+          await this.plugin.saveSettings();
+          this.render();
+        });
+      });
+    }
+  }
+};
+function collectTagCounts(plugin) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const capture of plugin.index.getItems()) {
+    if (capture.status === "deleted") continue;
+    for (const tag of capture.tags) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
 // src/main.ts
-var LocalCapturePlugin = class extends import_obsidian11.Plugin {
+var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   constructor() {
     super(...arguments);
     this.selectedCaptureIds = /* @__PURE__ */ new Set();
@@ -12426,7 +12806,9 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
       captureFolder: normalizeCaptureFolder(loaded?.captureFolder ?? DEFAULT_SETTINGS.captureFolder),
       dailySummaryFolder: normalizeFolder(loaded?.dailySummaryFolder ?? DEFAULT_SETTINGS.dailySummaryFolder) || DEFAULT_SETTINGS.dailySummaryFolder,
       dailyNoteFolder: normalizeFolder(loaded?.dailyNoteFolder ?? DEFAULT_SETTINGS.dailyNoteFolder),
-      savedQueries: normalizeSavedQueries(loaded?.savedQueries)
+      savedQueries: normalizeSavedQueries(loaded?.savedQueries),
+      tagColors: normalizeTagColors(loaded?.tagColors),
+      captureTemplates: normalizeCaptureTemplates(loaded?.captureTemplates)
     };
   }
   async saveSettings() {
@@ -12434,6 +12816,8 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
     this.settings.dailySummaryFolder = normalizeFolder(this.settings.dailySummaryFolder) || DEFAULT_SETTINGS.dailySummaryFolder;
     this.settings.dailyNoteFolder = normalizeFolder(this.settings.dailyNoteFolder);
     this.settings.savedQueries = normalizeSavedQueries(this.settings.savedQueries);
+    this.settings.tagColors = normalizeTagColors(this.settings.tagColors);
+    this.settings.captureTemplates = normalizeCaptureTemplates(this.settings.captureTemplates);
     await this.saveData(this.settings);
   }
   async activateView() {
@@ -12457,7 +12841,7 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
   }
   async pickTargetAndSend(captures) {
     if (captures.length === 0) {
-      new import_obsidian11.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
+      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
       return;
     }
     new TargetFileSuggestModal(this, async (target) => {
@@ -12467,17 +12851,27 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
   }
   openBatchTagModal(captures) {
     if (captures.length === 0) {
-      new import_obsidian11.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
+      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
       return;
     }
     new BatchTagModal(this, captures).open();
   }
   openBatchTypeModal(captures) {
     if (captures.length === 0) {
-      new import_obsidian11.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
+      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
       return;
     }
     new BatchTypeModal(this, captures).open();
+  }
+  openTagManagementModal() {
+    new TagManagementModal(this).open();
+  }
+  async setTagColor(tag, color) {
+    this.settings.tagColors = {
+      ...this.settings.tagColors,
+      [tag]: color
+    };
+    await this.saveSettings();
   }
   async saveQuery(name, filter) {
     const savedQuery = {
@@ -12490,7 +12884,7 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
     };
     this.settings.savedQueries = [...this.settings.savedQueries, savedQuery];
     await this.saveSettings();
-    new import_obsidian11.Notice(`\u5DF2\u4FDD\u5B58\u67E5\u8BE2\uFF1A${savedQuery.name}`);
+    new import_obsidian12.Notice(`\u5DF2\u4FDD\u5B58\u67E5\u8BE2\uFF1A${savedQuery.name}`);
     return savedQuery;
   }
   async deleteQuery(id) {
@@ -12498,7 +12892,7 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
     this.settings.savedQueries = this.settings.savedQueries.filter((query) => query.id !== id);
     await this.saveSettings();
     if (deleted) {
-      new import_obsidian11.Notice(`\u5DF2\u5220\u9664\u67E5\u8BE2\uFF1A${deleted.name}`);
+      new import_obsidian12.Notice(`\u5DF2\u5220\u9664\u67E5\u8BE2\uFF1A${deleted.name}`);
     }
   }
   async generateSummaryForActiveDay() {
@@ -12511,8 +12905,8 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
   }
   async openCaptureFile(capture) {
     const file = this.app.vault.getAbstractFileByPath(capture.path);
-    if (!(file instanceof import_obsidian11.TFile)) {
-      new import_obsidian11.Notice(`\u627E\u4E0D\u5230\u8BB0\u5F55\u6587\u4EF6\uFF1A${capture.path}`);
+    if (!(file instanceof import_obsidian12.TFile)) {
+      new import_obsidian12.Notice(`\u627E\u4E0D\u5230\u8BB0\u5F55\u6587\u4EF6\uFF1A${capture.path}`);
       return;
     }
     await this.app.workspace.getLeaf(false).openFile(file);
@@ -12584,6 +12978,11 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
       callback: () => this.openBatchTypeModal(this.getSelectedCaptures())
     });
     this.addCommand({
+      id: "manage-local-capture-tags",
+      name: "\u7BA1\u7406 Local Capture \u6807\u7B7E",
+      callback: () => this.openTagManagementModal()
+    });
+    this.addCommand({
       id: "archive-selected-captures",
       name: "\u5F52\u6863\u9009\u4E2D\u8BB0\u5F55",
       callback: () => void this.captureService.archiveMany(this.getSelectedCaptures())
@@ -12623,7 +13022,7 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
     const diagnostics = await this.captureService.runDiagnostics();
     console.info("Local Capture diagnostics", diagnostics);
     const issueText = diagnostics.issues.length > 0 ? `\uFF0C\u53D1\u73B0 ${diagnostics.issues.length} \u4E2A\u95EE\u9898` : "\uFF0C\u672A\u53D1\u73B0\u95EE\u9898";
-    new import_obsidian11.Notice(`Local Capture \u8BCA\u65AD\u5B8C\u6210\uFF1A${diagnostics.captureCount} \u6761\u8BB0\u5F55${issueText}`);
+    new import_obsidian12.Notice(`Local Capture \u8BCA\u65AD\u5B8C\u6210\uFF1A${diagnostics.captureCount} \u6761\u8BB0\u5F55${issueText}`);
   }
   registerUriCapture() {
     this.registerObsidianProtocolHandler(PLUGIN_ID, async (params) => {
@@ -12631,7 +13030,7 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
       const type = normalizeCaptureType(firstValue(params.type), this.settings.defaultType);
       const url = firstValue(params.url) ?? firstValue(params.source_url);
       if (!bodyMarkdown.trim()) {
-        new import_obsidian11.Notice("URI \u6355\u83B7\u7F3A\u5C11 text\u3001body \u6216 content \u53C2\u6570");
+        new import_obsidian12.Notice("URI \u6355\u83B7\u7F3A\u5C11 text\u3001body \u6216 content \u53C2\u6570");
         return;
       }
       await this.captureService.createCapture({
@@ -12648,12 +13047,12 @@ var LocalCapturePlugin = class extends import_obsidian11.Plugin {
   async createFromClipboard() {
     const clipboard = navigator.clipboard;
     if (!clipboard?.readText) {
-      new import_obsidian11.Notice("\u5F53\u524D\u73AF\u5883\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F");
+      new import_obsidian12.Notice("\u5F53\u524D\u73AF\u5883\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F");
       return;
     }
     const text = await clipboard.readText();
     if (!text.trim()) {
-      new import_obsidian11.Notice("\u526A\u8D34\u677F\u4E3A\u7A7A");
+      new import_obsidian12.Notice("\u526A\u8D34\u677F\u4E3A\u7A7A");
       return;
     }
     await this.captureService.createCapture({
@@ -12740,6 +13139,7 @@ lucide-react/dist/esm/icons/rotate-ccw.js:
 lucide-react/dist/esm/icons/save.js:
 lucide-react/dist/esm/icons/search.js:
 lucide-react/dist/esm/icons/send.js:
+lucide-react/dist/esm/icons/sliders-horizontal.js:
 lucide-react/dist/esm/icons/star.js:
 lucide-react/dist/esm/icons/table-2.js:
 lucide-react/dist/esm/icons/tags.js:
