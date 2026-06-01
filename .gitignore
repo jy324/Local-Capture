@@ -1,0 +1,8 @@
+node_modules/
+.npm-cache/
+data.json
+.DS_Store
+*.log
+coverage/
+dist/
+.vite/
