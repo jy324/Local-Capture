@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
+import { Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { PLUGIN_ID, VIEW_TYPE_LOCAL_CAPTURE } from "./constants";
 import {
   DEFAULT_SETTINGS,
@@ -28,6 +28,8 @@ export default class LocalCapturePlugin extends Plugin {
 
   private selectedCaptureIds = new Set<string>();
   private activeDayKey: string | undefined;
+  private queuedIndexUpdates = new Map<string, TAbstractFile>();
+  private indexUpdateTimer: ReturnType<typeof setTimeout> | undefined;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -53,6 +55,10 @@ export default class LocalCapturePlugin extends Plugin {
   }
 
   onunload(): void {
+    if (this.indexUpdateTimer) {
+      clearTimeout(this.indexUpdateTimer);
+      this.indexUpdateTimer = undefined;
+    }
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_LOCAL_CAPTURE);
   }
 
@@ -197,13 +203,13 @@ export default class LocalCapturePlugin extends Plugin {
   private registerFileEvents(): void {
     this.registerEvent(
       this.app.vault.on("create", (file) => {
-        void this.index.updateFile(file);
+        this.queueIndexUpdate(file);
       })
     );
 
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
-        void this.index.updateFile(file);
+        this.queueIndexUpdate(file);
       })
     );
 
@@ -216,17 +222,33 @@ export default class LocalCapturePlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         this.index.removePath(oldPath);
-        void this.index.updateFile(file);
+        this.queueIndexUpdate(file);
       })
     );
 
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (this.index.isCapturePath(file.path)) {
-          void this.index.updateFile(file);
+          this.queueIndexUpdate(file);
         }
       })
     );
+  }
+
+  private queueIndexUpdate(file: TAbstractFile): void {
+    this.queuedIndexUpdates.set(file.path, file);
+    if (this.indexUpdateTimer) {
+      clearTimeout(this.indexUpdateTimer);
+    }
+
+    this.indexUpdateTimer = setTimeout(() => {
+      this.indexUpdateTimer = undefined;
+      const files = [...this.queuedIndexUpdates.values()];
+      this.queuedIndexUpdates.clear();
+      for (const queuedFile of files) {
+        void this.index.updateFile(queuedFile);
+      }
+    }, 75);
   }
 
   private registerCommands(): void {

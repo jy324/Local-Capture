@@ -15,6 +15,9 @@ import { buildCapturePath, dayKeyFromIso } from "../utils/dates";
 import { extractInlineTags, mergeTags, normalizeTag, replaceInlineTag, uniqueTags } from "../utils/tags";
 import { parseCaptureFile, replaceBody, serializeCaptureFile } from "../utils/frontmatter";
 import { formatCaptureForAppend, formatDailySummaryBlock, upsertDailySummaryBlock } from "../utils/markdown";
+import { mapWithConcurrency } from "../utils/async";
+
+const BATCH_WRITE_CONCURRENCY = 8;
 
 export class CaptureService {
   constructor(
@@ -104,54 +107,74 @@ export class CaptureService {
   }
 
   async archiveMany(captures: CaptureItem[]): Promise<void> {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "archived")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "archived"));
   }
 
   async softDeleteMany(captures: CaptureItem[]): Promise<void> {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "deleted")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "deleted"));
   }
 
   async restoreMany(captures: CaptureItem[]): Promise<void> {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "active")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "active"));
   }
 
   async updateTagsMany(captures: CaptureItem[], tags: string[], mode: BatchTagMode): Promise<void> {
     const normalizedTags = uniqueTags(tags);
     if (normalizedTags.length === 0) return;
 
-    await Promise.all(
-      captures.map((capture) =>
-        this.updateFrontmatter(capture, (frontmatter) => {
-          const current = frontmatterTags(frontmatter.tags);
-          if (mode === "replace") {
-            frontmatter.tags = normalizedTags;
-          } else if (mode === "remove") {
-            const removeSet = new Set(normalizedTags.map((tag) => tag.toLocaleLowerCase()));
-            frontmatter.tags = current.filter((tag) => !removeSet.has(tag.toLocaleLowerCase()));
-          } else {
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
+        if (mode === "add") {
+          await this.updateFrontmatter(capture, (frontmatter) => {
+            const current = frontmatterTags(frontmatter.tags);
             frontmatter.tags = uniqueTags([...current, ...normalizedTags]);
+            frontmatter.updated = new Date().toISOString();
+          });
+          return;
+        }
+
+        const currentTags = uniqueTags(capture.tags);
+        const removeSet =
+          mode === "remove"
+            ? new Set(normalizedTags.map((tag) => tag.toLocaleLowerCase()))
+            : new Set(currentTags.map((tag) => tag.toLocaleLowerCase()));
+        let bodyMarkdown = capture.bodyMarkdown;
+        for (const tag of currentTags) {
+          if (removeSet.has(tag.toLocaleLowerCase())) {
+            bodyMarkdown = replaceInlineTag(bodyMarkdown, tag);
           }
-          frontmatter.updated = new Date().toISOString();
-        })
-      )
+        }
+
+        await this.rewriteCapture(capture, {
+          bodyMarkdown,
+          tags:
+            mode === "replace"
+              ? normalizedTags
+              : currentTags.filter((tag) => !removeSet.has(tag.toLocaleLowerCase()))
+        });
+      }
     );
 
     new Notice(`已处理 ${captures.length} 条记录的标签`);
   }
 
   async setTypeMany(captures: CaptureItem[], type: CaptureType): Promise<void> {
-    await Promise.all(
-      captures.map((capture) =>
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      (capture) =>
         this.updateFrontmatter(capture, (frontmatter) => {
-          frontmatter.type = type;
           if (type === "task") {
+            frontmatter.type = type;
             frontmatter.task_status = frontmatter.task_status === "done" ? "done" : "todo";
           } else {
+            frontmatter.type = type;
             delete frontmatter.task_status;
           }
           frontmatter.updated = new Date().toISOString();
         })
-      )
     );
 
     new Notice(`已将 ${captures.length} 条记录改为${type === "task" ? "任务" : "笔记"}`);
@@ -163,14 +186,16 @@ export class CaptureService {
     if (!from || !to || from.toLocaleLowerCase() === to.toLocaleLowerCase()) return;
 
     const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, from));
-    await Promise.all(
-      matching.map(async (capture) => {
+    await mapWithConcurrency(
+      matching,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
         const updatedTags = uniqueTags(capture.tags.map((tag) => sameTag(tag, from) ? to : tag));
         await this.rewriteCapture(capture, {
           bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, from, to),
           tags: updatedTags
         });
-      })
+      }
     );
 
     new Notice(`已将 #${from} 重命名为 #${to}`);
@@ -181,13 +206,15 @@ export class CaptureService {
     if (!target) return;
 
     const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, target));
-    await Promise.all(
-      matching.map(async (capture) => {
+    await mapWithConcurrency(
+      matching,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
         await this.rewriteCapture(capture, {
           bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, target),
           tags: capture.tags.filter((current) => !sameTag(current, target))
         });
-      })
+      }
     );
 
     new Notice(`已删除 #${target}`);
@@ -199,8 +226,10 @@ export class CaptureService {
     const payload = captures.map(formatCaptureForAppend).join("");
     await this.app.vault.process(target, (current) => `${current.trimEnd()}${payload}`);
 
-    await Promise.all(
-      captures.map((capture) =>
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      (capture) =>
         this.updateFrontmatter(capture, (frontmatter) => {
           const sentTo = Array.isArray(frontmatter.sent_to)
             ? frontmatter.sent_to.filter((value: unknown): value is string => typeof value === "string")
@@ -212,7 +241,6 @@ export class CaptureService {
           }
           frontmatter.updated = new Date().toISOString();
         })
-      )
     );
 
     new Notice(`已发送 ${captures.length} 条记录到 ${target.basename}`);

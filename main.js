@@ -7679,6 +7679,7 @@ var CaptureIndex = class {
   async rebuild() {
     if (this.rebuilding) return;
     this.rebuilding = true;
+    this.notify();
     try {
       const next = /* @__PURE__ */ new Map();
       const files = this.app.vault.getMarkdownFiles().filter((file) => this.isCapturePath(file.path));
@@ -7692,9 +7693,9 @@ var CaptureIndex = class {
       for (const [path, item] of next) {
         this.itemsByPath.set(path, item);
       }
-      this.notify();
     } finally {
       this.rebuilding = false;
+      this.notify();
     }
   }
   async updateFile(file) {
@@ -7869,7 +7870,22 @@ function escapeRegExp2(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// src/utils/async.ts
+async function mapWithConcurrency(items, limit, worker) {
+  const concurrency = Math.max(1, Math.min(limit, items.length || 1));
+  let cursor = 0;
+  async function run() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, run));
+}
+
 // src/services/CaptureService.ts
+var BATCH_WRITE_CONCURRENCY = 8;
 var CaptureService = class {
   constructor(app, getSettings, index) {
     this.app = app;
@@ -7943,48 +7959,59 @@ var CaptureService = class {
     });
   }
   async archiveMany(captures) {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "archived")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "archived"));
   }
   async softDeleteMany(captures) {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "deleted")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "deleted"));
   }
   async restoreMany(captures) {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "active")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "active"));
   }
   async updateTagsMany(captures, tags, mode) {
     const normalizedTags = uniqueTags(tags);
     if (normalizedTags.length === 0) return;
-    await Promise.all(
-      captures.map(
-        (capture) => this.updateFrontmatter(capture, (frontmatter) => {
-          const current = frontmatterTags(frontmatter.tags);
-          if (mode === "replace") {
-            frontmatter.tags = normalizedTags;
-          } else if (mode === "remove") {
-            const removeSet = new Set(normalizedTags.map((tag) => tag.toLocaleLowerCase()));
-            frontmatter.tags = current.filter((tag) => !removeSet.has(tag.toLocaleLowerCase()));
-          } else {
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
+        if (mode === "add") {
+          await this.updateFrontmatter(capture, (frontmatter) => {
+            const current = frontmatterTags(frontmatter.tags);
             frontmatter.tags = uniqueTags([...current, ...normalizedTags]);
+            frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+          });
+          return;
+        }
+        const currentTags = uniqueTags(capture.tags);
+        const removeSet = mode === "remove" ? new Set(normalizedTags.map((tag) => tag.toLocaleLowerCase())) : new Set(currentTags.map((tag) => tag.toLocaleLowerCase()));
+        let bodyMarkdown = capture.bodyMarkdown;
+        for (const tag of currentTags) {
+          if (removeSet.has(tag.toLocaleLowerCase())) {
+            bodyMarkdown = replaceInlineTag(bodyMarkdown, tag);
           }
-          frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
-        })
-      )
+        }
+        await this.rewriteCapture(capture, {
+          bodyMarkdown,
+          tags: mode === "replace" ? normalizedTags : currentTags.filter((tag) => !removeSet.has(tag.toLocaleLowerCase()))
+        });
+      }
     );
     new import_obsidian3.Notice(`\u5DF2\u5904\u7406 ${captures.length} \u6761\u8BB0\u5F55\u7684\u6807\u7B7E`);
   }
   async setTypeMany(captures, type) {
-    await Promise.all(
-      captures.map(
-        (capture) => this.updateFrontmatter(capture, (frontmatter) => {
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      (capture) => this.updateFrontmatter(capture, (frontmatter) => {
+        if (type === "task") {
           frontmatter.type = type;
-          if (type === "task") {
-            frontmatter.task_status = frontmatter.task_status === "done" ? "done" : "todo";
-          } else {
-            delete frontmatter.task_status;
-          }
-          frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
-        })
-      )
+          frontmatter.task_status = frontmatter.task_status === "done" ? "done" : "todo";
+        } else {
+          frontmatter.type = type;
+          delete frontmatter.task_status;
+        }
+        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+      })
     );
     new import_obsidian3.Notice(`\u5DF2\u5C06 ${captures.length} \u6761\u8BB0\u5F55\u6539\u4E3A${type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0"}`);
   }
@@ -7993,14 +8020,16 @@ var CaptureService = class {
     const to = normalizeTag(newTag);
     if (!from || !to || from.toLocaleLowerCase() === to.toLocaleLowerCase()) return;
     const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, from));
-    await Promise.all(
-      matching.map(async (capture) => {
+    await mapWithConcurrency(
+      matching,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
         const updatedTags = uniqueTags(capture.tags.map((tag) => sameTag(tag, from) ? to : tag));
         await this.rewriteCapture(capture, {
           bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, from, to),
           tags: updatedTags
         });
-      })
+      }
     );
     new import_obsidian3.Notice(`\u5DF2\u5C06 #${from} \u91CD\u547D\u540D\u4E3A #${to}`);
   }
@@ -8008,13 +8037,15 @@ var CaptureService = class {
     const target = normalizeTag(tag);
     if (!target) return;
     const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, target));
-    await Promise.all(
-      matching.map(async (capture) => {
+    await mapWithConcurrency(
+      matching,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
         await this.rewriteCapture(capture, {
           bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, target),
           tags: capture.tags.filter((current) => !sameTag(current, target))
         });
-      })
+      }
     );
     new import_obsidian3.Notice(`\u5DF2\u5220\u9664 #${target}`);
   }
@@ -8022,17 +8053,17 @@ var CaptureService = class {
     if (captures.length === 0) return;
     const payload = captures.map(formatCaptureForAppend).join("");
     await this.app.vault.process(target, (current) => `${current.trimEnd()}${payload}`);
-    await Promise.all(
-      captures.map(
-        (capture) => this.updateFrontmatter(capture, (frontmatter) => {
-          const sentTo = Array.isArray(frontmatter.sent_to) ? frontmatter.sent_to.filter((value) => typeof value === "string") : [];
-          frontmatter.sent_to = [.../* @__PURE__ */ new Set([...sentTo, target.path])];
-          if (this.getSettings().autoArchiveAfterSend) {
-            frontmatter.status = "archived";
-          }
-          frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
-        })
-      )
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      (capture) => this.updateFrontmatter(capture, (frontmatter) => {
+        const sentTo = Array.isArray(frontmatter.sent_to) ? frontmatter.sent_to.filter((value) => typeof value === "string") : [];
+        frontmatter.sent_to = [.../* @__PURE__ */ new Set([...sentTo, target.path])];
+        if (this.getSettings().autoArchiveAfterSend) {
+          frontmatter.status = "archived";
+        }
+        frontmatter.updated = (/* @__PURE__ */ new Date()).toISOString();
+      })
     );
     new import_obsidian3.Notice(`\u5DF2\u53D1\u9001 ${captures.length} \u6761\u8BB0\u5F55\u5230 ${target.basename}`);
   }
@@ -13062,6 +13093,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   constructor() {
     super(...arguments);
     this.selectedCaptureIds = /* @__PURE__ */ new Set();
+    this.queuedIndexUpdates = /* @__PURE__ */ new Map();
   }
   async onload() {
     await this.loadSettings();
@@ -13081,6 +13113,10 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
     await this.index.rebuild();
   }
   onunload() {
+    if (this.indexUpdateTimer) {
+      clearTimeout(this.indexUpdateTimer);
+      this.indexUpdateTimer = void 0;
+    }
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_LOCAL_CAPTURE);
   }
   async loadSettings() {
@@ -13199,12 +13235,12 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   registerFileEvents() {
     this.registerEvent(
       this.app.vault.on("create", (file) => {
-        void this.index.updateFile(file);
+        this.queueIndexUpdate(file);
       })
     );
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
-        void this.index.updateFile(file);
+        this.queueIndexUpdate(file);
       })
     );
     this.registerEvent(
@@ -13215,16 +13251,30 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         this.index.removePath(oldPath);
-        void this.index.updateFile(file);
+        this.queueIndexUpdate(file);
       })
     );
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (this.index.isCapturePath(file.path)) {
-          void this.index.updateFile(file);
+          this.queueIndexUpdate(file);
         }
       })
     );
+  }
+  queueIndexUpdate(file) {
+    this.queuedIndexUpdates.set(file.path, file);
+    if (this.indexUpdateTimer) {
+      clearTimeout(this.indexUpdateTimer);
+    }
+    this.indexUpdateTimer = setTimeout(() => {
+      this.indexUpdateTimer = void 0;
+      const files = [...this.queuedIndexUpdates.values()];
+      this.queuedIndexUpdates.clear();
+      for (const queuedFile of files) {
+        void this.index.updateFile(queuedFile);
+      }
+    }, 75);
   }
   registerCommands() {
     this.addCommand({

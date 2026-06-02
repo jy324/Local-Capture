@@ -42,6 +42,7 @@ export class CaptureIndex {
   async rebuild(): Promise<void> {
     if (this.rebuilding) return;
     this.rebuilding = true;
+    this.notify();
 
     try {
       const next = new Map<string, CaptureItem>();
@@ -60,9 +61,9 @@ export class CaptureIndex {
       for (const [path, item] of next) {
         this.itemsByPath.set(path, item);
       }
-      this.notify();
     } finally {
       this.rebuilding = false;
+      this.notify();
     }
   }
 

@@ -2,6 +2,7 @@ import Fuse from "fuse.js";
 import { describe, expect, it } from "vitest";
 import { CaptureItem } from "../src/types";
 import { sortTableItems } from "../src/ui/shared/formatters";
+import { parseCaptureFile } from "../src/utils/frontmatter";
 
 function makeItems(count: number): CaptureItem[] {
   const items: CaptureItem[] = [];
@@ -24,6 +25,31 @@ function makeItems(count: number): CaptureItem[] {
     });
   }
   return items;
+}
+
+function makeRawCapture(index: number): { path: string; raw: string } {
+  const created = new Date(Date.parse("2026-01-01T00:00:00.000Z") + index * 60_000).toISOString();
+  const tag = `tag${index % 50}`;
+  const path = `Captures/2026/01/item-${index}.md`;
+  return {
+    path,
+    raw: [
+      "---",
+      `capture_id: "id-${index}"`,
+      `created: "${created}"`,
+      `updated: "${created}"`,
+      `type: "${index % 3 === 0 ? "task" : "note"}"`,
+      ...(index % 3 === 0 ? ['task_status: "todo"'] : []),
+      `status: "${index % 7 === 0 ? "archived" : "active"}"`,
+      `pinned: ${index % 101 === 0 ? "true" : "false"}`,
+      "tags:",
+      `  - "${tag}"`,
+      "---",
+      "",
+      `这是第 ${index} 条记录 #${tag}`,
+      ""
+    ].join("\n")
+  };
 }
 
 // These are regression guards, not precise benchmarks: they assert that the
@@ -74,4 +100,20 @@ describe("performance guards", () => {
     const elapsed = performance.now() - start;
     expect(elapsed).toBeLessThan(2_000);
   });
+
+  for (const count of [1_000, 5_000, 10_000]) {
+    it(`parses and sorts ${count} Markdown capture files quickly`, () => {
+      const captures = Array.from({ length: count }, (_value, index) => makeRawCapture(index));
+      const start = performance.now();
+      const items = captures
+        .map((capture) => parseCaptureFile(capture.path, capture.raw))
+        .filter((item): item is CaptureItem => item !== null);
+      const sorted = sortTableItems(items, "createdAt", "desc");
+      const elapsed = performance.now() - start;
+
+      expect(sorted.length).toBe(count);
+      expect(sorted[0].id).toBe(`id-${count - 1}`);
+      expect(elapsed).toBeLessThan(2_500);
+    });
+  }
 });

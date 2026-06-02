@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1
+
+- Fixed empty-vault rebuild state so the first-run empty state appears after indexing completes.
+- Fixed batch tag remove/replace so inline body tags are synchronized and do not reappear after rebuilding the index.
+- Added bounded concurrency for batch writes and queued duplicate index refresh events.
+- Added release verification and expanded regression/performance tests.
+
 ## 0.9.0
 
 - Fixed a data-loss bug where editing a capture's body (or renaming/deleting tags) silently dropped user-authored frontmatter keys such as `aliases` and `cssclass`. Body and frontmatter writes are now isolated and preserve unknown keys.
