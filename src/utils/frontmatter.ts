@@ -66,6 +66,20 @@ export function splitFrontmatter(raw: string): FrontmatterParts {
   };
 }
 
+/**
+ * Replace only the body of a capture file, preserving the original frontmatter
+ * block verbatim (including any user-authored keys we don't model). When the
+ * file has no frontmatter, the body is replaced wholesale.
+ */
+export function replaceBody(raw: string, newBody: string): string {
+  const match = FRONTMATTER_BLOCK.exec(raw);
+  const body = `${newBody.trimEnd()}\n`;
+  if (!match) {
+    return body;
+  }
+  return `${match[0]}${body}`;
+}
+
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }

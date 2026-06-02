@@ -15,6 +15,7 @@ export interface LocalCaptureSettings {
   savedQueries: SavedQuery[];
   tagColors: TagColorMap;
   captureTemplates: CaptureTemplates;
+  advancedFiltersOpen: boolean;
 }
 
 export const DEFAULT_SETTINGS: LocalCaptureSettings = {
@@ -33,7 +34,8 @@ export const DEFAULT_SETTINGS: LocalCaptureSettings = {
     task: "{{content}}",
     clipboard: "{{content}}",
     uri: "{{content}}\n\n{{source_url}}"
-  }
+  },
+  advancedFiltersOpen: false
 };
 
 export function normalizeCaptureFolder(folder: string): string {

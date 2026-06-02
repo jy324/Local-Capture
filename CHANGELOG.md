@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+
+- Fixed a data-loss bug where editing a capture's body (or renaming/deleting tags) silently dropped user-authored frontmatter keys such as `aliases` and `cssclass`. Body and frontmatter writes are now isolated and preserve unknown keys.
+- Reworked the sidebar with progressive disclosure: the composer, search, status, and view controls stay visible while saved queries, tag cloud, and the heatmap collapse into a "高级筛选" section (state persisted).
+- Moved low-frequency global actions (rebuild, summary, send summary, tag management, diagnostics) into the view header instead of the filter area.
+- Added a virtualized Table view, an index sort cache, Set-based selection, and a memoized + debounced search so large vaults stay responsive.
+- Added distinct first-run onboarding and no-match empty states (with a clear-filters action and visible keyboard hints), plus a loading state during initial index rebuild.
+- Split the monolithic capture view into focused components and hooks; added frontmatter-preservation and 1k/5k/10k performance regression tests.
+
 ## 0.8.0
 
 - Added tag management with counts, colors, rename, and delete actions.

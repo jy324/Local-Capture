@@ -7311,7 +7311,8 @@ var DEFAULT_SETTINGS = {
     task: "{{content}}",
     clipboard: "{{content}}",
     uri: "{{content}}\n\n{{source_url}}"
-  }
+  },
+  advancedFiltersOpen: false
 };
 function normalizeCaptureFolder(folder) {
   const trimmed = folder.trim() || DEFAULT_CAPTURE_FOLDER;
@@ -7535,6 +7536,15 @@ function splitFrontmatter(raw) {
     body: raw.slice(match[0].length)
   };
 }
+function replaceBody(raw, newBody) {
+  const match = FRONTMATTER_BLOCK.exec(raw);
+  const body = `${newBody.trimEnd()}
+`;
+  if (!match) {
+    return body;
+  }
+  return `${match[0]}${body}`;
+}
 function asString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
@@ -7644,13 +7654,20 @@ var CaptureIndex = class {
     this.itemsByPath = /* @__PURE__ */ new Map();
     this.listeners = /* @__PURE__ */ new Set();
     this.rebuilding = false;
+    this.sortedCache = null;
   }
   subscribe(listener) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
+  isRebuilding() {
+    return this.rebuilding;
+  }
   getItems() {
-    return [...this.itemsByPath.values()].sort(sortCaptures);
+    if (!this.sortedCache) {
+      this.sortedCache = [...this.itemsByPath.values()].sort(sortCaptures);
+    }
+    return this.sortedCache;
   }
   getById(id) {
     return this.getItems().find((item) => item.id === id);
@@ -7716,6 +7733,7 @@ var CaptureIndex = class {
     }
   }
   notify() {
+    this.sortedCache = null;
     for (const listener of this.listeners) {
       listener();
     }
@@ -7895,13 +7913,14 @@ var CaptureService = class {
   async updateBody(capture, bodyMarkdown) {
     const file = this.requireFile(capture.path);
     if (!file) return;
-    const updated = {
-      ...capture,
-      bodyMarkdown: bodyMarkdown.trimEnd(),
-      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      tags: mergeTags(capture.tags, extractInlineTags(bodyMarkdown))
-    };
-    await this.app.vault.process(file, () => serializeCaptureFile(updated));
+    const body = bodyMarkdown.trimEnd();
+    const tags = mergeTags(capture.tags, extractInlineTags(bodyMarkdown));
+    await this.app.vault.process(file, (raw) => replaceBody(raw, body));
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      const fm = frontmatter;
+      fm.tags = tags;
+      fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+    });
     await this.index.updateFile(file);
   }
   async setPinned(capture, pinned) {
@@ -8062,13 +8081,26 @@ var CaptureService = class {
   async rewriteCapture(capture, patch) {
     const file = this.requireFile(capture.path);
     if (!file) return;
-    const updated = {
-      ...capture,
-      ...patch,
-      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    updated.tags = uniqueTags(updated.tags);
-    await this.app.vault.process(file, () => serializeCaptureFile(updated));
+    if (patch.bodyMarkdown !== void 0) {
+      await this.app.vault.process(file, (raw) => replaceBody(raw, patch.bodyMarkdown.trimEnd()));
+    }
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      const fm = frontmatter;
+      if (patch.tags !== void 0) fm.tags = uniqueTags(patch.tags);
+      if (patch.type !== void 0) {
+        fm.type = patch.type;
+        if (patch.type === "task") {
+          fm.task_status = patch.taskStatus ?? (fm.task_status === "done" ? "done" : "todo");
+        } else {
+          delete fm.task_status;
+        }
+      } else if (patch.taskStatus !== void 0) {
+        fm.task_status = patch.taskStatus;
+      }
+      if (patch.status !== void 0) fm.status = patch.status;
+      if (patch.pinned !== void 0) fm.pinned = patch.pinned;
+      fm.updated = (/* @__PURE__ */ new Date()).toISOString();
+    });
     await this.index.updateFile(file);
   }
   async createUniquePath(folder, createdAt, firstId) {
@@ -8267,6 +8299,2232 @@ var TargetFileSuggestModal = class extends import_obsidian5.FuzzySuggestModal {
 // src/view.tsx
 var import_obsidian8 = require("obsidian");
 var import_client = __toESM(require_client());
+
+// src/ui/LocalCaptureApp.tsx
+var import_react13 = __toESM(require_react());
+
+// node_modules/lucide-react/dist/esm/createLucideIcon.js
+var import_react2 = __toESM(require_react());
+
+// node_modules/lucide-react/dist/esm/shared/src/utils.js
+var toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+var mergeClasses = (...classes) => classes.filter((className, index, array) => {
+  return Boolean(className) && className.trim() !== "" && array.indexOf(className) === index;
+}).join(" ").trim();
+
+// node_modules/lucide-react/dist/esm/Icon.js
+var import_react = __toESM(require_react());
+
+// node_modules/lucide-react/dist/esm/defaultAttributes.js
+var defaultAttributes = {
+  xmlns: "http://www.w3.org/2000/svg",
+  width: 24,
+  height: 24,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+};
+
+// node_modules/lucide-react/dist/esm/Icon.js
+var Icon = (0, import_react.forwardRef)(
+  ({
+    color = "currentColor",
+    size = 24,
+    strokeWidth = 2,
+    absoluteStrokeWidth,
+    className = "",
+    children,
+    iconNode,
+    ...rest
+  }, ref) => {
+    return (0, import_react.createElement)(
+      "svg",
+      {
+        ref,
+        ...defaultAttributes,
+        width: size,
+        height: size,
+        stroke: color,
+        strokeWidth: absoluteStrokeWidth ? Number(strokeWidth) * 24 / Number(size) : strokeWidth,
+        className: mergeClasses("lucide", className),
+        ...rest
+      },
+      [
+        ...iconNode.map(([tag, attrs]) => (0, import_react.createElement)(tag, attrs)),
+        ...Array.isArray(children) ? children : [children]
+      ]
+    );
+  }
+);
+
+// node_modules/lucide-react/dist/esm/createLucideIcon.js
+var createLucideIcon = (iconName, iconNode) => {
+  const Component = (0, import_react2.forwardRef)(
+    ({ className, ...props }, ref) => (0, import_react2.createElement)(Icon, {
+      ref,
+      iconNode,
+      className: mergeClasses(`lucide-${toKebabCase(iconName)}`, className),
+      ...props
+    })
+  );
+  Component.displayName = `${iconName}`;
+  return Component;
+};
+
+// node_modules/lucide-react/dist/esm/icons/archive-restore.js
+var ArchiveRestore = createLucideIcon("ArchiveRestore", [
+  ["rect", { width: "20", height: "5", x: "2", y: "3", rx: "1", key: "1wp1u1" }],
+  ["path", { d: "M4 8v11a2 2 0 0 0 2 2h2", key: "tvwodi" }],
+  ["path", { d: "M20 8v11a2 2 0 0 1-2 2h-2", key: "1gkqxj" }],
+  ["path", { d: "m9 15 3-3 3 3", key: "1pd0qc" }],
+  ["path", { d: "M12 12v9", key: "192myk" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/archive.js
+var Archive = createLucideIcon("Archive", [
+  ["rect", { width: "20", height: "5", x: "2", y: "3", rx: "1", key: "1wp1u1" }],
+  ["path", { d: "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8", key: "1s80jp" }],
+  ["path", { d: "M10 12h4", key: "a56b0p" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/check.js
+var Check = createLucideIcon("Check", [["path", { d: "M20 6 9 17l-5-5", key: "1gmf2c" }]]);
+
+// node_modules/lucide-react/dist/esm/icons/chevron-right.js
+var ChevronRight = createLucideIcon("ChevronRight", [
+  ["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/circle-check.js
+var CircleCheck = createLucideIcon("CircleCheck", [
+  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
+  ["path", { d: "m9 12 2 2 4-4", key: "dzmm74" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/circle.js
+var Circle = createLucideIcon("Circle", [
+  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/external-link.js
+var ExternalLink = createLucideIcon("ExternalLink", [
+  ["path", { d: "M15 3h6v6", key: "1q9fwt" }],
+  ["path", { d: "M10 14 21 3", key: "gplh6r" }],
+  ["path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6", key: "a6xqqp" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/file-input.js
+var FileInput = createLucideIcon("FileInput", [
+  ["path", { d: "M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4", key: "1pf5j1" }],
+  ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4", key: "tnqrlb" }],
+  ["path", { d: "M2 15h10", key: "jfw4w8" }],
+  ["path", { d: "m9 18 3-3-3-3", key: "112psh" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/inbox.js
+var Inbox = createLucideIcon("Inbox", [
+  ["polyline", { points: "22 12 16 12 14 15 10 15 8 12 2 12", key: "o97t9d" }],
+  [
+    "path",
+    {
+      d: "M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+      key: "oot6mr"
+    }
+  ]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/list-todo.js
+var ListTodo = createLucideIcon("ListTodo", [
+  ["rect", { x: "3", y: "5", width: "6", height: "6", rx: "1", key: "1defrl" }],
+  ["path", { d: "m3 17 2 2 4-4", key: "1jhpwq" }],
+  ["path", { d: "M13 6h8", key: "15sg57" }],
+  ["path", { d: "M13 12h8", key: "h98zly" }],
+  ["path", { d: "M13 18h8", key: "oe0vm4" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/list.js
+var List = createLucideIcon("List", [
+  ["path", { d: "M3 12h.01", key: "nlz23k" }],
+  ["path", { d: "M3 18h.01", key: "1tta3j" }],
+  ["path", { d: "M3 6h.01", key: "1rqtza" }],
+  ["path", { d: "M8 12h13", key: "1za7za" }],
+  ["path", { d: "M8 18h13", key: "1lx6n3" }],
+  ["path", { d: "M8 6h13", key: "ik3vkj" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/pencil.js
+var Pencil = createLucideIcon("Pencil", [
+  [
+    "path",
+    {
+      d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
+      key: "1a8usu"
+    }
+  ],
+  ["path", { d: "m15 5 4 4", key: "1mk7zo" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/pin-off.js
+var PinOff = createLucideIcon("PinOff", [
+  ["path", { d: "M12 17v5", key: "bb1du9" }],
+  ["path", { d: "M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89", key: "znwnzq" }],
+  ["path", { d: "m2 2 20 20", key: "1ooewy" }],
+  [
+    "path",
+    {
+      d: "M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11",
+      key: "c9qhm2"
+    }
+  ]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/pin.js
+var Pin = createLucideIcon("Pin", [
+  ["path", { d: "M12 17v5", key: "bb1du9" }],
+  [
+    "path",
+    {
+      d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z",
+      key: "1nkz8b"
+    }
+  ]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/rotate-ccw.js
+var RotateCcw = createLucideIcon("RotateCcw", [
+  ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "1357e3" }],
+  ["path", { d: "M3 3v5h5", key: "1xhq8a" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/save.js
+var Save = createLucideIcon("Save", [
+  [
+    "path",
+    {
+      d: "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+      key: "1c8476"
+    }
+  ],
+  ["path", { d: "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7", key: "1ydtos" }],
+  ["path", { d: "M7 3v4a1 1 0 0 0 1 1h7", key: "t51u73" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/search.js
+var Search = createLucideIcon("Search", [
+  ["circle", { cx: "11", cy: "11", r: "8", key: "4ej97u" }],
+  ["path", { d: "m21 21-4.3-4.3", key: "1qie3q" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/send.js
+var Send = createLucideIcon("Send", [
+  [
+    "path",
+    {
+      d: "M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z",
+      key: "1ffxy3"
+    }
+  ],
+  ["path", { d: "m21.854 2.147-10.94 10.939", key: "12cjpa" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/sliders-horizontal.js
+var SlidersHorizontal = createLucideIcon("SlidersHorizontal", [
+  ["line", { x1: "21", x2: "14", y1: "4", y2: "4", key: "obuewd" }],
+  ["line", { x1: "10", x2: "3", y1: "4", y2: "4", key: "1q6298" }],
+  ["line", { x1: "21", x2: "12", y1: "12", y2: "12", key: "1iu8h1" }],
+  ["line", { x1: "8", x2: "3", y1: "12", y2: "12", key: "ntss68" }],
+  ["line", { x1: "21", x2: "16", y1: "20", y2: "20", key: "14d8ph" }],
+  ["line", { x1: "12", x2: "3", y1: "20", y2: "20", key: "m0wm8r" }],
+  ["line", { x1: "14", x2: "14", y1: "2", y2: "6", key: "14e1ph" }],
+  ["line", { x1: "8", x2: "8", y1: "10", y2: "14", key: "1i6ji0" }],
+  ["line", { x1: "16", x2: "16", y1: "18", y2: "22", key: "1lctlv" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/star.js
+var Star = createLucideIcon("Star", [
+  [
+    "path",
+    {
+      d: "M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z",
+      key: "r04s7s"
+    }
+  ]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/table-2.js
+var Table2 = createLucideIcon("Table2", [
+  [
+    "path",
+    {
+      d: "M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18",
+      key: "gugj83"
+    }
+  ]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/tags.js
+var Tags = createLucideIcon("Tags", [
+  ["path", { d: "m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19", key: "1cbfv1" }],
+  [
+    "path",
+    {
+      d: "M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z",
+      key: "135mg7"
+    }
+  ],
+  ["circle", { cx: "6.5", cy: "9.5", r: ".5", fill: "currentColor", key: "5pm5xn" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/trash-2.js
+var Trash2 = createLucideIcon("Trash2", [
+  ["path", { d: "M3 6h18", key: "d0wm0j" }],
+  ["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", key: "4alrt4" }],
+  ["path", { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", key: "v07s0e" }],
+  ["line", { x1: "10", x2: "10", y1: "11", y2: "17", key: "1uufr5" }],
+  ["line", { x1: "14", x2: "14", y1: "11", y2: "17", key: "xtxkd" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/x.js
+var X = createLucideIcon("X", [
+  ["path", { d: "M18 6 6 18", key: "1bl5f8" }],
+  ["path", { d: "m6 6 12 12", key: "d8bk6v" }]
+]);
+
+// src/ui/shared/formatters.ts
+function statusText(status) {
+  if (status === "archived") return "\u5F52\u6863";
+  if (status === "deleted") return "\u5220\u9664";
+  return "\u6D3B\u8DC3";
+}
+function buildDefaultQueryName(query, status, selectedDay) {
+  const parts = [
+    selectedDay,
+    status === "all" ? "\u5168\u90E8" : statusText(status),
+    query.trim() ? `"${query.trim()}"` : void 0
+  ].filter(Boolean);
+  return parts.join(" \xB7 ") || "\u5F53\u524D\u7B5B\u9009";
+}
+var tableColumns = [
+  { key: "time", label: "\u65F6\u95F4" },
+  { key: "type", label: "\u7C7B\u578B" },
+  { key: "status", label: "\u72B6\u6001" },
+  { key: "title", label: "\u6807\u9898" },
+  { key: "tags", label: "\u6807\u7B7E" }
+];
+function sortTableItems(items, key, direction) {
+  const multiplier = direction === "asc" ? 1 : -1;
+  return [...items].sort((a, b) => multiplier * compareTableItems(a, b, key));
+}
+function compareTableItems(a, b, key) {
+  if (key === "createdAt") {
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  }
+  if (key === "tags") {
+    return a.tags.join(" ").localeCompare(b.tags.join(" "));
+  }
+  return String(a[key] ?? "").localeCompare(String(b[key] ?? ""));
+}
+function tagColorStyle(color) {
+  if (!color) return void 0;
+  return {
+    borderColor: color,
+    color
+  };
+}
+
+// src/ui/components/Heatmap.tsx
+var import_react3 = __toESM(require_react());
+var import_jsx_runtime = __toESM(require_jsx_runtime());
+function Heatmap({ items, days, selectedDay, onSelectDay }) {
+  const counts = (0, import_react3.useMemo)(() => {
+    const map = /* @__PURE__ */ new Map();
+    for (const item of items) {
+      if (item.status === "deleted") continue;
+      const day = dayKeyFromIso(item.createdAt);
+      map.set(day, (map.get(day) ?? 0) + 1);
+    }
+    return map;
+  }, [items]);
+  const dayKeys = (0, import_react3.useMemo)(() => recentDayKeys(days), [days]);
+  const max = Math.max(1, ...dayKeys.map((day) => counts.get(day) ?? 0));
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "local-capture-heatmap", "aria-label": "\u8BB0\u5F55\u70ED\u529B\u56FE", children: dayKeys.map((day) => {
+    const count = counts.get(day) ?? 0;
+    const level = count === 0 ? 0 : Math.ceil(count / max * 4);
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "button",
+      {
+        type: "button",
+        className: selectedDay === day ? "is-selected" : "",
+        "data-level": level,
+        title: `${day}: ${count} \u6761`,
+        "aria-label": `${day}: ${count} \u6761`,
+        onClick: () => onSelectDay(day)
+      },
+      day
+    );
+  }) });
+}
+
+// src/ui/components/AdvancedFilters.tsx
+var import_jsx_runtime2 = __toESM(require_jsx_runtime());
+function AdvancedFilters(props) {
+  const { open, onToggleOpen } = props;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "local-capture-advanced", "aria-label": "\u9AD8\u7EA7\u7B5B\u9009", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+      "button",
+      {
+        type: "button",
+        className: "local-capture-advanced-toggle",
+        "aria-expanded": open,
+        onClick: onToggleOpen,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            ChevronRight,
+            {
+              size: 14,
+              "aria-hidden": "true",
+              className: open ? "local-capture-chevron is-open" : "local-capture-chevron"
+            }
+          ),
+          "\u9AD8\u7EA7\u7B5B\u9009"
+        ]
+      }
+    ),
+    open ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AdvancedFiltersBody, { ...props }) : null
+  ] });
+}
+function AdvancedFiltersBody({
+  plugin,
+  items,
+  tagCounts,
+  savedQueries,
+  savedQueryId,
+  savedQueryName,
+  onApplySavedQuery,
+  onSavedQueryNameChange,
+  onSaveQuery,
+  onDeleteSavedQuery,
+  onSelectTag,
+  selectedDay,
+  onSelectDay,
+  onClearDay
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-advanced-body", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-saved-query-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("select", { value: savedQueryId, onChange: (event) => onApplySavedQuery(event.currentTarget.value), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "", children: "\u4FDD\u5B58\u67E5\u8BE2" }),
+        savedQueries.map((savedQuery) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: savedQuery.id, children: savedQuery.name }, savedQuery.id))
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        "input",
+        {
+          value: savedQueryName,
+          placeholder: "\u547D\u540D\u5F53\u524D\u7B5B\u9009",
+          onChange: (event) => onSavedQueryNameChange(event.currentTarget.value)
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u4FDD\u5B58\u5F53\u524D\u67E5\u8BE2", onClick: onSaveQuery, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Star, { size: 14, "aria-hidden": "true" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u5220\u9664\u9009\u4E2D\u67E5\u8BE2", disabled: !savedQueryId, onClick: onDeleteSavedQuery, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Trash2, { size: 14, "aria-hidden": "true" }) })
+    ] }),
+    tagCounts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-tag-cloud", "aria-label": "\u6807\u7B7E\u5217\u8868", children: tagCounts.slice(0, 18).map(([tag, count]) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+      "button",
+      {
+        type: "button",
+        title: `\u7B5B\u9009 #${tag}`,
+        style: tagColorStyle(plugin.settings.tagColors[tag]),
+        onClick: () => onSelectTag(tag),
+        children: [
+          "#",
+          tag,
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: count })
+        ]
+      },
+      tag
+    )) }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      Heatmap,
+      {
+        items,
+        days: plugin.settings.heatmapDays,
+        selectedDay,
+        onSelectDay
+      }
+    ),
+    selectedDay ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { type: "button", className: "local-capture-filter-chip", onClick: onClearDay, children: [
+      selectedDay,
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(X, { size: 14, "aria-hidden": "true" })
+    ] }) : null
+  ] });
+}
+
+// src/ui/components/BatchBar.tsx
+var import_jsx_runtime3 = __toESM(require_jsx_runtime());
+function BatchBar({
+  plugin,
+  selectedItems,
+  onArchive,
+  onRestore,
+  onDelete,
+  onClear
+}) {
+  if (selectedItems.length === 0) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "local-capture-batchbar", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
+      selectedItems.length,
+      " \u6761"
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => void plugin.pickTargetAndSend(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Send, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u6807\u7B7E", onClick: () => plugin.openBatchTagModal(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Tags, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u7C7B\u578B", onClick: () => plugin.openBatchTypeModal(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ListTodo, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5F52\u6863", onClick: onArchive, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Archive, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6062\u590D", onClick: onRestore, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotateCcw, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5220\u9664", onClick: onDelete, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Trash2, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D6\u6D88\u9009\u62E9", onClick: onClear, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(X, { size: 15, "aria-hidden": "true" }) })
+  ] });
+}
+
+// src/ui/components/CaptureTable.tsx
+var import_react4 = __toESM(require_react());
+
+// node_modules/@tanstack/react-virtual/dist/esm/index.js
+var React = __toESM(require_react(), 1);
+var import_react_dom = __toESM(require_react_dom(), 1);
+
+// node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+function createLazyMeasurementsView(count, flat, getItemKey) {
+  const cache = new Array(count);
+  return new Proxy(cache, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string") {
+        const c = prop.charCodeAt(0);
+        if (c >= 48 && c <= 57) {
+          const i = +prop;
+          if (Number.isInteger(i) && i >= 0 && i < count) {
+            let v = target[i];
+            if (!v) {
+              const s = flat[i * 2];
+              v = target[i] = {
+                index: i,
+                key: getItemKey(i),
+                start: s,
+                size: flat[i * 2 + 1],
+                end: s + flat[i * 2 + 1],
+                lane: 0
+              };
+            }
+            return v;
+          }
+        }
+        if (prop === "length") return count;
+      }
+      return Reflect.get(target, prop, receiver);
+    }
+  });
+}
+
+// node_modules/@tanstack/virtual-core/dist/esm/utils.js
+function memo(getDeps, fn, opts) {
+  let deps = opts.initialDeps ?? [];
+  let result;
+  let isInitial = true;
+  function memoizedFunction() {
+    var _a;
+    const debugEnabled = false;
+    let depTime = 0;
+    if (debugEnabled) depTime = Date.now();
+    const newDeps = getDeps();
+    const depsChanged = newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep);
+    if (!depsChanged) {
+      return result;
+    }
+    deps = newDeps;
+    let resultTime = 0;
+    if (debugEnabled) resultTime = Date.now();
+    result = fn(...newDeps);
+    if (debugEnabled) {
+      const depEndTime = Math.round((Date.now() - depTime) * 100) / 100;
+      const resultEndTime = Math.round((Date.now() - resultTime) * 100) / 100;
+      const resultFpsPercentage = resultEndTime / 16;
+      const pad2 = (str, num) => {
+        str = String(str);
+        while (str.length < num) {
+          str = " " + str;
+        }
+        return str;
+      };
+      console.info(
+        `%c\u23F1 ${pad2(resultEndTime, 5)} /${pad2(depEndTime, 5)} ms`,
+        `
+            font-size: .6rem;
+            font-weight: bold;
+            color: hsl(${Math.max(
+          0,
+          Math.min(120 - 120 * resultFpsPercentage, 120)
+        )}deg 100% 31%);`,
+        opts == null ? void 0 : opts.key
+      );
+    }
+    if ((opts == null ? void 0 : opts.onChange) && !(isInitial && opts.skipInitialOnChange)) {
+      opts.onChange(result);
+    }
+    isInitial = false;
+    return result;
+  }
+  memoizedFunction.updateDeps = (newDeps) => {
+    deps = newDeps;
+  };
+  return memoizedFunction;
+}
+function notUndefined(value, msg) {
+  if (value === void 0) {
+    throw new Error(`Unexpected undefined${msg ? `: ${msg}` : ""}`);
+  } else {
+    return value;
+  }
+}
+var approxEqual = (a, b) => Math.abs(a - b) < 1.01;
+var debounce = (targetWindow, fn, ms) => {
+  let timeoutId;
+  return function(...args) {
+    targetWindow.clearTimeout(timeoutId);
+    timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
+  };
+};
+
+// node_modules/@tanstack/virtual-core/dist/esm/index.js
+var _isIOSResult;
+var isIOSWebKit = () => {
+  if (_isIOSResult !== void 0) return _isIOSResult;
+  if (typeof navigator === "undefined") return _isIOSResult = false;
+  if (/iP(hone|od|ad)/.test(navigator.userAgent)) return _isIOSResult = true;
+  const mtp = navigator.maxTouchPoints;
+  return _isIOSResult = navigator.platform === "MacIntel" && mtp !== void 0 && mtp > 0;
+};
+var getRect = (element) => {
+  const { offsetWidth, offsetHeight } = element;
+  return { width: offsetWidth, height: offsetHeight };
+};
+var defaultKeyExtractor = (index) => index;
+var defaultRangeExtractor = (range) => {
+  const start = Math.max(range.startIndex - range.overscan, 0);
+  const end = Math.min(range.endIndex + range.overscan, range.count - 1);
+  const len = end - start + 1;
+  const arr = new Array(len);
+  for (let i = 0; i < len; i++) {
+    arr[i] = start + i;
+  }
+  return arr;
+};
+var observeElementRect = (instance, cb) => {
+  const element = instance.scrollElement;
+  if (!element) {
+    return;
+  }
+  const targetWindow = instance.targetWindow;
+  if (!targetWindow) {
+    return;
+  }
+  const handler = (rect) => {
+    const { width, height } = rect;
+    cb({ width: Math.round(width), height: Math.round(height) });
+  };
+  handler(getRect(element));
+  if (!targetWindow.ResizeObserver) {
+    return () => {
+    };
+  }
+  const observer = new targetWindow.ResizeObserver((entries) => {
+    const run = () => {
+      const entry = entries[0];
+      if (entry == null ? void 0 : entry.borderBoxSize) {
+        const box = entry.borderBoxSize[0];
+        if (box) {
+          handler({ width: box.inlineSize, height: box.blockSize });
+          return;
+        }
+      }
+      handler(getRect(element));
+    };
+    instance.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+  });
+  observer.observe(element, { box: "border-box" });
+  return () => {
+    observer.unobserve(element);
+  };
+};
+var addEventListenerOptions = {
+  passive: true
+};
+var supportsScrollend = typeof window == "undefined" ? true : "onscrollend" in window;
+var observeOffset = (instance, cb, readOffset) => {
+  const element = instance.scrollElement;
+  if (!element) {
+    return;
+  }
+  const targetWindow = instance.targetWindow;
+  if (!targetWindow) {
+    return;
+  }
+  const registerScrollendEvent = instance.options.useScrollendEvent && supportsScrollend;
+  let offset = 0;
+  const fallback = registerScrollendEvent ? null : debounce(
+    targetWindow,
+    () => cb(offset, false),
+    instance.options.isScrollingResetDelay
+  );
+  const createHandler = (isScrolling) => () => {
+    offset = readOffset(element);
+    fallback == null ? void 0 : fallback();
+    cb(offset, isScrolling);
+  };
+  const handler = createHandler(true);
+  const endHandler = createHandler(false);
+  element.addEventListener("scroll", handler, addEventListenerOptions);
+  if (registerScrollendEvent) {
+    element.addEventListener("scrollend", endHandler, addEventListenerOptions);
+  }
+  return () => {
+    element.removeEventListener("scroll", handler);
+    if (registerScrollendEvent) {
+      element.removeEventListener("scrollend", endHandler);
+    }
+  };
+};
+var observeElementOffset = (instance, cb) => observeOffset(instance, cb, (el) => {
+  const { horizontal, isRtl } = instance.options;
+  return horizontal ? el.scrollLeft * (isRtl && -1 || 1) : el.scrollTop;
+});
+var measureElement = (element, entry, instance) => {
+  if (entry == null ? void 0 : entry.borderBoxSize) {
+    const box = entry.borderBoxSize[0];
+    if (box) {
+      const size = Math.round(
+        box[instance.options.horizontal ? "inlineSize" : "blockSize"]
+      );
+      return size;
+    }
+  }
+  return element[instance.options.horizontal ? "offsetWidth" : "offsetHeight"];
+};
+var scrollWithAdjustments = (offset, {
+  adjustments = 0,
+  behavior
+}, instance) => {
+  var _a, _b;
+  (_b = (_a = instance.scrollElement) == null ? void 0 : _a.scrollTo) == null ? void 0 : _b.call(_a, {
+    [instance.options.horizontal ? "left" : "top"]: offset + adjustments,
+    behavior
+  });
+};
+var elementScroll = scrollWithAdjustments;
+var Virtualizer = class {
+  constructor(opts) {
+    this.unsubs = [];
+    this.scrollElement = null;
+    this.targetWindow = null;
+    this.isScrolling = false;
+    this.scrollState = null;
+    this.measurementsCache = [];
+    this._flatMeasurements = null;
+    this.itemSizeCache = /* @__PURE__ */ new Map();
+    this.itemSizeCacheVersion = 0;
+    this.laneAssignments = /* @__PURE__ */ new Map();
+    this.pendingMin = null;
+    this.prevLanes = void 0;
+    this.lanesChangedFlag = false;
+    this.lanesSettling = false;
+    this.pendingScrollAnchor = null;
+    this.scrollRect = null;
+    this.scrollOffset = null;
+    this.scrollDirection = null;
+    this.scrollAdjustments = 0;
+    this._iosDeferredAdjustment = 0;
+    this._iosTouching = false;
+    this._iosJustTouchEnded = false;
+    this._iosTouchEndTimerId = null;
+    this._intendedScrollOffset = null;
+    this.elementsCache = /* @__PURE__ */ new Map();
+    this.now = () => {
+      var _a, _b, _c;
+      return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
+    };
+    this.observer = /* @__PURE__ */ (() => {
+      let _ro = null;
+      const get2 = () => {
+        if (_ro) {
+          return _ro;
+        }
+        if (!this.targetWindow || !this.targetWindow.ResizeObserver) {
+          return null;
+        }
+        return _ro = new this.targetWindow.ResizeObserver((entries) => {
+          entries.forEach((entry) => {
+            const run = () => {
+              const node = entry.target;
+              const index = this.indexFromElement(node);
+              if (!node.isConnected) {
+                this.observer.unobserve(node);
+                for (const [cacheKey, cachedNode] of this.elementsCache) {
+                  if (cachedNode === node) {
+                    this.elementsCache.delete(cacheKey);
+                    break;
+                  }
+                }
+                return;
+              }
+              if (this.shouldMeasureDuringScroll(index)) {
+                this.resizeItem(
+                  index,
+                  this.options.measureElement(node, entry, this)
+                );
+              }
+            };
+            this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
+          });
+        });
+      };
+      return {
+        disconnect: () => {
+          var _a;
+          (_a = get2()) == null ? void 0 : _a.disconnect();
+          _ro = null;
+        },
+        observe: (target) => {
+          var _a;
+          return (_a = get2()) == null ? void 0 : _a.observe(target, { box: "border-box" });
+        },
+        unobserve: (target) => {
+          var _a;
+          return (_a = get2()) == null ? void 0 : _a.unobserve(target);
+        }
+      };
+    })();
+    this.range = null;
+    this.setOptions = (opts2) => {
+      var _a, _b;
+      const merged = {
+        debug: false,
+        initialOffset: 0,
+        overscan: 1,
+        paddingStart: 0,
+        paddingEnd: 0,
+        scrollPaddingStart: 0,
+        scrollPaddingEnd: 0,
+        horizontal: false,
+        getItemKey: defaultKeyExtractor,
+        rangeExtractor: defaultRangeExtractor,
+        onChange: () => {
+        },
+        measureElement,
+        initialRect: { width: 0, height: 0 },
+        scrollMargin: 0,
+        gap: 0,
+        indexAttribute: "data-index",
+        initialMeasurementsCache: [],
+        lanes: 1,
+        anchorTo: "start",
+        followOnAppend: false,
+        scrollEndThreshold: 1,
+        isScrollingResetDelay: 150,
+        enabled: true,
+        isRtl: false,
+        useScrollendEvent: false,
+        useAnimationFrameWithResizeObserver: false,
+        laneAssignmentMode: "estimate"
+      };
+      for (const key in opts2) {
+        const v = opts2[key];
+        if (v !== void 0) merged[key] = v;
+      }
+      const prevOptions = this.options;
+      let anchor = null;
+      let followOnAppend = null;
+      if (prevOptions !== void 0 && prevOptions.enabled && merged.enabled && merged.anchorTo === "end" && this.scrollElement !== null) {
+        const prevCount = prevOptions.count;
+        const nextCount = merged.count;
+        const measurements = this.getMeasurements();
+        const prevFirstKey = prevCount > 0 ? ((_a = measurements[0]) == null ? void 0 : _a.key) ?? prevOptions.getItemKey(0) : null;
+        const prevLastKey = prevCount > 0 ? ((_b = measurements[prevCount - 1]) == null ? void 0 : _b.key) ?? prevOptions.getItemKey(prevCount - 1) : null;
+        const didCountChange = nextCount !== prevCount;
+        const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
+        if (didEdgeKeysChange) {
+          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
+          if (item) {
+            anchor = [item.key, this.getScrollOffset() - item.start];
+          }
+          const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
+          if (behavior && nextCount > prevCount && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
+            followOnAppend = behavior;
+          }
+        }
+      }
+      this.options = merged;
+      if (anchor || followOnAppend) {
+        this.pendingScrollAnchor = [
+          (anchor == null ? void 0 : anchor[0]) ?? null,
+          (anchor == null ? void 0 : anchor[1]) ?? 0,
+          followOnAppend
+        ];
+      }
+    };
+    this.notify = (sync) => {
+      var _a, _b;
+      (_b = (_a = this.options).onChange) == null ? void 0 : _b.call(_a, this, sync);
+    };
+    this.maybeNotify = memo(
+      () => {
+        this.calculateRange();
+        return [
+          this.isScrolling,
+          this.range ? this.range.startIndex : null,
+          this.range ? this.range.endIndex : null
+        ];
+      },
+      (isScrolling) => {
+        this.notify(isScrolling);
+      },
+      {
+        key: false,
+        debug: () => this.options.debug,
+        initialDeps: [
+          this.isScrolling,
+          this.range ? this.range.startIndex : null,
+          this.range ? this.range.endIndex : null
+        ]
+      }
+    );
+    this.cleanup = () => {
+      this.unsubs.filter(Boolean).forEach((d) => d());
+      this.unsubs = [];
+      this.observer.disconnect();
+      if (this.rafId != null && this.targetWindow) {
+        this.targetWindow.cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+      this.scrollState = null;
+      this.scrollElement = null;
+      this.targetWindow = null;
+    };
+    this._didMount = () => {
+      return () => {
+        this.cleanup();
+      };
+    };
+    this._willUpdate = () => {
+      var _a;
+      const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
+      if (this.scrollElement !== scrollElement) {
+        this.cleanup();
+        if (!scrollElement) {
+          this.maybeNotify();
+          return;
+        }
+        this.scrollElement = scrollElement;
+        if (this.scrollElement && "ownerDocument" in this.scrollElement) {
+          this.targetWindow = this.scrollElement.ownerDocument.defaultView;
+        } else {
+          this.targetWindow = ((_a = this.scrollElement) == null ? void 0 : _a.window) ?? null;
+        }
+        this.elementsCache.forEach((cached) => {
+          this.observer.observe(cached);
+        });
+        this.unsubs.push(
+          this.options.observeElementRect(this, (rect) => {
+            this.scrollRect = rect;
+            this.maybeNotify();
+          })
+        );
+        this.unsubs.push(
+          this.options.observeElementOffset(this, (offset, isScrolling) => {
+            if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) {
+              offset = this._intendedScrollOffset;
+            }
+            this._intendedScrollOffset = null;
+            this.scrollAdjustments = 0;
+            this.scrollDirection = isScrolling ? this.getScrollOffset() < offset ? "forward" : "backward" : null;
+            this.scrollOffset = offset;
+            this.isScrolling = isScrolling;
+            this._flushIosDeferredIfReady();
+            if (this.scrollState) {
+              this.scheduleScrollReconcile();
+            }
+            this.maybeNotify();
+          })
+        );
+        if ("addEventListener" in this.scrollElement) {
+          const scrollEl = this.scrollElement;
+          const onTouchStart = () => {
+            this._iosTouching = true;
+            this._iosJustTouchEnded = false;
+            if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+              this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+              this._iosTouchEndTimerId = null;
+            }
+          };
+          const onTouchEnd = () => {
+            this._iosTouching = false;
+            if (!isIOSWebKit() || this.targetWindow == null) {
+              return;
+            }
+            this._iosJustTouchEnded = true;
+            this._iosTouchEndTimerId = this.targetWindow.setTimeout(() => {
+              this._iosJustTouchEnded = false;
+              this._iosTouchEndTimerId = null;
+              this._flushIosDeferredIfReady();
+            }, 150);
+          };
+          scrollEl.addEventListener(
+            "touchstart",
+            onTouchStart,
+            addEventListenerOptions
+          );
+          scrollEl.addEventListener(
+            "touchend",
+            onTouchEnd,
+            addEventListenerOptions
+          );
+          this.unsubs.push(() => {
+            scrollEl.removeEventListener("touchstart", onTouchStart);
+            scrollEl.removeEventListener("touchend", onTouchEnd);
+            if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+              this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+              this._iosTouchEndTimerId = null;
+            }
+          });
+        }
+        this._scrollToOffset(this.getScrollOffset(), {
+          adjustments: void 0,
+          behavior: void 0
+        });
+      }
+      const anchor = this.pendingScrollAnchor;
+      this.pendingScrollAnchor = null;
+      if (anchor && this.scrollElement && this.options.enabled) {
+        const [key, offset, followOnAppend] = anchor;
+        if (key !== null) {
+          const { count, getItemKey } = this.options;
+          let index = 0;
+          while (index < count && getItemKey(index) !== key) {
+            index++;
+          }
+          const item = index < count ? this.getMeasurements()[index] : void 0;
+          if (item) {
+            const delta = item.start + offset - this.getScrollOffset();
+            if (!approxEqual(delta, 0)) {
+              this.applyScrollAdjustment(delta);
+            }
+          }
+        }
+        if (followOnAppend) {
+          this.scrollToEnd({ behavior: followOnAppend });
+        }
+      }
+    };
+    this._flushIosDeferredIfReady = () => {
+      if (this._iosDeferredAdjustment === 0) return;
+      if (this.isScrolling) return;
+      if (this._iosTouching) return;
+      if (this._iosJustTouchEnded) return;
+      const cur = this.getScrollOffset();
+      const max = this.getMaxScrollOffset();
+      if (cur < 0 || cur > max) return;
+      const delta = this._iosDeferredAdjustment;
+      this._iosDeferredAdjustment = 0;
+      this._scrollToOffset(cur, {
+        adjustments: this.scrollAdjustments += delta,
+        behavior: void 0
+      });
+    };
+    this.rafId = null;
+    this.getSize = () => {
+      if (!this.options.enabled) {
+        this.scrollRect = null;
+        return 0;
+      }
+      this.scrollRect = this.scrollRect ?? this.options.initialRect;
+      return this.scrollRect[this.options.horizontal ? "width" : "height"];
+    };
+    this.getScrollOffset = () => {
+      if (!this.options.enabled) {
+        this.scrollOffset = null;
+        return 0;
+      }
+      this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
+      return this.scrollOffset;
+    };
+    this.getFurthestMeasurement = (measurements, index) => {
+      const furthestMeasurementsFound = /* @__PURE__ */ new Map();
+      const furthestMeasurements = /* @__PURE__ */ new Map();
+      for (let m = index - 1; m >= 0; m--) {
+        const measurement = measurements[m];
+        if (furthestMeasurementsFound.has(measurement.lane)) {
+          continue;
+        }
+        const previousFurthestMeasurement = furthestMeasurements.get(
+          measurement.lane
+        );
+        if (previousFurthestMeasurement == null || measurement.end > previousFurthestMeasurement.end) {
+          furthestMeasurements.set(measurement.lane, measurement);
+        } else if (measurement.end < previousFurthestMeasurement.end) {
+          furthestMeasurementsFound.set(measurement.lane, true);
+        }
+        if (furthestMeasurementsFound.size === this.options.lanes) {
+          break;
+        }
+      }
+      return furthestMeasurements.size === this.options.lanes ? Array.from(furthestMeasurements.values()).sort((a, b) => {
+        if (a.end === b.end) {
+          return a.index - b.index;
+        }
+        return a.end - b.end;
+      })[0] : void 0;
+    };
+    this.getMeasurementOptions = memo(
+      () => [
+        this.options.count,
+        this.options.paddingStart,
+        this.options.scrollMargin,
+        this.options.getItemKey,
+        this.options.enabled,
+        this.options.lanes,
+        this.options.laneAssignmentMode
+      ],
+      (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode) => {
+        const lanesChanged = this.prevLanes !== void 0 && this.prevLanes !== lanes;
+        if (lanesChanged) {
+          this.lanesChangedFlag = true;
+        }
+        this.prevLanes = lanes;
+        this.pendingMin = null;
+        return {
+          count,
+          paddingStart,
+          scrollMargin,
+          getItemKey,
+          enabled,
+          lanes,
+          laneAssignmentMode
+        };
+      },
+      {
+        key: false
+      }
+    );
+    this.getMeasurements = memo(
+      () => [this.getMeasurementOptions(), this.itemSizeCacheVersion],
+      ({
+        count,
+        paddingStart,
+        scrollMargin,
+        getItemKey,
+        enabled,
+        lanes,
+        laneAssignmentMode
+      }, _itemSizeCacheVersion) => {
+        const itemSizeCache = this.itemSizeCache;
+        if (!enabled) {
+          this.measurementsCache = [];
+          this.itemSizeCache.clear();
+          this.laneAssignments.clear();
+          return [];
+        }
+        if (this.laneAssignments.size > count) {
+          for (const index of this.laneAssignments.keys()) {
+            if (index >= count) {
+              this.laneAssignments.delete(index);
+            }
+          }
+        }
+        if (this.lanesChangedFlag) {
+          this.lanesChangedFlag = false;
+          this.lanesSettling = true;
+          this.measurementsCache = [];
+          this.itemSizeCache.clear();
+          this.laneAssignments.clear();
+          this.pendingMin = null;
+        }
+        if (this.measurementsCache.length === 0 && !this.lanesSettling) {
+          this.measurementsCache = this.options.initialMeasurementsCache;
+          this.measurementsCache.forEach((item) => {
+            this.itemSizeCache.set(item.key, item.size);
+          });
+        }
+        const min = this.lanesSettling ? 0 : this.pendingMin ?? 0;
+        this.pendingMin = null;
+        if (this.lanesSettling && this.measurementsCache.length === count) {
+          this.lanesSettling = false;
+        }
+        if (lanes === 1) {
+          const gap = this.options.gap;
+          const need = count * 2;
+          let flat = this._flatMeasurements;
+          if (!flat || flat.length < need) {
+            const next = new Float64Array(need);
+            if (flat && min > 0) next.set(flat.subarray(0, min * 2));
+            flat = next;
+            this._flatMeasurements = flat;
+          }
+          let runningStart;
+          if (min === 0) {
+            runningStart = paddingStart + scrollMargin;
+          } else {
+            const prevIdx = min - 1;
+            runningStart = flat[prevIdx * 2] + flat[prevIdx * 2 + 1] + gap;
+          }
+          for (let i = min; i < count; i++) {
+            const key = getItemKey(i);
+            const measuredSize = itemSizeCache.get(key);
+            const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
+            flat[i * 2] = runningStart;
+            flat[i * 2 + 1] = size;
+            runningStart += size + gap;
+          }
+          const view = createLazyMeasurementsView(count, flat, getItemKey);
+          this.measurementsCache = view;
+          return view;
+        }
+        const measurements = this.measurementsCache.slice(0, min);
+        const laneLastIndex = new Array(lanes).fill(
+          void 0
+        );
+        for (let m = 0; m < min; m++) {
+          const item = measurements[m];
+          if (item) {
+            laneLastIndex[item.lane] = m;
+          }
+        }
+        for (let i = min; i < count; i++) {
+          const key = getItemKey(i);
+          const cachedLane = this.laneAssignments.get(i);
+          let lane;
+          let start;
+          const shouldCacheLane = laneAssignmentMode === "estimate" || itemSizeCache.has(key);
+          if (cachedLane !== void 0 && this.options.lanes > 1) {
+            lane = cachedLane;
+            const prevIndex = laneLastIndex[lane];
+            const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
+            start = prevInLane ? prevInLane.end + this.options.gap : paddingStart + scrollMargin;
+          } else {
+            const furthestMeasurement = this.options.lanes === 1 ? measurements[i - 1] : this.getFurthestMeasurement(measurements, i);
+            start = furthestMeasurement ? furthestMeasurement.end + this.options.gap : paddingStart + scrollMargin;
+            lane = furthestMeasurement ? furthestMeasurement.lane : i % this.options.lanes;
+            if (this.options.lanes > 1 && shouldCacheLane) {
+              this.laneAssignments.set(i, lane);
+            }
+          }
+          const measuredSize = itemSizeCache.get(key);
+          const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
+          const end = start + size;
+          measurements[i] = {
+            index: i,
+            start,
+            size,
+            end,
+            key,
+            lane
+          };
+          laneLastIndex[lane] = i;
+        }
+        this.measurementsCache = measurements;
+        return measurements;
+      },
+      {
+        key: false,
+        debug: () => this.options.debug
+      }
+    );
+    this.calculateRange = memo(
+      () => [
+        this.getMeasurements(),
+        this.getSize(),
+        this.getScrollOffset(),
+        this.options.lanes
+      ],
+      (measurements, outerSize, scrollOffset, lanes) => {
+        return this.range = measurements.length > 0 && outerSize > 0 ? calculateRange({
+          measurements,
+          outerSize,
+          scrollOffset,
+          lanes,
+          // Pass the typed array so binary search + forward-walk can
+          // read start/end directly from Float64Array, skipping the
+          // Proxy traps that materialize a full VirtualItem per probe.
+          flat: lanes === 1 && this._flatMeasurements != null ? this._flatMeasurements : null
+        }) : null;
+      },
+      {
+        key: false,
+        debug: () => this.options.debug
+      }
+    );
+    this.getVirtualIndexes = memo(
+      () => {
+        let startIndex = null;
+        let endIndex = null;
+        const range = this.calculateRange();
+        if (range) {
+          startIndex = range.startIndex;
+          endIndex = range.endIndex;
+        }
+        this.maybeNotify.updateDeps([this.isScrolling, startIndex, endIndex]);
+        return [
+          this.options.rangeExtractor,
+          this.options.overscan,
+          this.options.count,
+          startIndex,
+          endIndex
+        ];
+      },
+      (rangeExtractor, overscan, count, startIndex, endIndex) => {
+        return startIndex === null || endIndex === null ? [] : rangeExtractor({
+          startIndex,
+          endIndex,
+          overscan,
+          count
+        });
+      },
+      {
+        key: false,
+        debug: () => this.options.debug
+      }
+    );
+    this.indexFromElement = (node) => {
+      const attributeName = this.options.indexAttribute;
+      const indexStr = node.getAttribute(attributeName);
+      if (!indexStr) {
+        console.warn(
+          `Missing attribute name '${attributeName}={index}' on measured element.`
+        );
+        return -1;
+      }
+      return parseInt(indexStr, 10);
+    };
+    this.shouldMeasureDuringScroll = (index) => {
+      var _a;
+      if (!this.scrollState || this.scrollState.behavior !== "smooth") {
+        return true;
+      }
+      const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
+      if (scrollIndex !== void 0 && this.range) {
+        const bufferSize = Math.max(
+          this.options.overscan,
+          Math.ceil((this.range.endIndex - this.range.startIndex) / 2)
+        );
+        const minIndex = Math.max(0, scrollIndex - bufferSize);
+        const maxIndex = Math.min(
+          this.options.count - 1,
+          scrollIndex + bufferSize
+        );
+        return index >= minIndex && index <= maxIndex;
+      }
+      return true;
+    };
+    this.measureElement = (node) => {
+      if (!node) {
+        this.elementsCache.forEach((cached, key2) => {
+          if (!cached.isConnected) {
+            this.observer.unobserve(cached);
+            this.elementsCache.delete(key2);
+          }
+        });
+        return;
+      }
+      const index = this.indexFromElement(node);
+      const key = this.options.getItemKey(index);
+      const prevNode = this.elementsCache.get(key);
+      if (prevNode !== node) {
+        if (prevNode) {
+          this.observer.unobserve(prevNode);
+        }
+        this.observer.observe(node);
+        this.elementsCache.set(key, node);
+      }
+      if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) {
+        this.resizeItem(index, this.options.measureElement(node, void 0, this));
+      }
+    };
+    this.resizeItem = (index, size) => {
+      var _a, _b;
+      if (index < 0 || index >= this.options.count) return;
+      let cachedSize;
+      let itemStart;
+      let key;
+      const flat = this._flatMeasurements;
+      if (this.options.lanes === 1 && flat !== null) {
+        key = this.options.getItemKey(index);
+        itemStart = flat[index * 2];
+        cachedSize = flat[index * 2 + 1];
+      } else {
+        const item = this.measurementsCache[index];
+        if (!item) return;
+        key = item.key;
+        itemStart = item.start;
+        cachedSize = item.size;
+      }
+      const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
+      const delta = size - itemSize;
+      if (delta !== 0) {
+        const wasAtEnd = this.options.anchorTo === "end" && ((_a = this.scrollState) == null ? void 0 : _a.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
+        const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
+        const shouldAdjustScroll = ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(
+          // The callback expects a VirtualItem; build one lazily only
+          // when the consumer actually supplied a custom predicate.
+          this.measurementsCache[index] ?? {
+            index,
+            key,
+            start: itemStart,
+            size: cachedSize,
+            end: itemStart + cachedSize,
+            lane: 0
+          },
+          delta,
+          this
+        ) : (
+          // Default: adjust scrollTop only when the resize is an above-
+          // viewport item AND we're not actively scrolling backward.
+          // Adjusting during backward scroll fights the user's scroll
+          // direction and produces the "items jump while scrolling up"
+          // jank reported across many issues. Users who want the old
+          // behavior can pass shouldAdjustScrollPositionOnItemSizeChange.
+          itemStart < this.getScrollOffset() + this.scrollAdjustments && this.scrollDirection !== "backward"
+        ));
+        if (this.pendingMin === null || index < this.pendingMin) {
+          this.pendingMin = index;
+        }
+        this.itemSizeCache.set(key, size);
+        this.itemSizeCacheVersion++;
+        if (wasAtEnd) {
+          this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
+        } else if (shouldAdjustScroll) {
+          this.applyScrollAdjustment(delta);
+        }
+        this.notify(false);
+      }
+    };
+    this.getVirtualItems = memo(
+      () => [this.getVirtualIndexes(), this.getMeasurements()],
+      (indexes, measurements) => {
+        const virtualItems = [];
+        for (let k = 0, len = indexes.length; k < len; k++) {
+          const i = indexes[k];
+          const measurement = measurements[i];
+          virtualItems.push(measurement);
+        }
+        return virtualItems;
+      },
+      {
+        key: false,
+        debug: () => this.options.debug
+      }
+    );
+    this.getVirtualItemForOffset = (offset) => {
+      const measurements = this.getMeasurements();
+      if (measurements.length === 0) {
+        return void 0;
+      }
+      const flat = this._flatMeasurements;
+      const useFlat = this.options.lanes === 1 && flat != null;
+      const idx = findNearestBinarySearch(
+        0,
+        measurements.length - 1,
+        useFlat ? (i) => flat[i * 2] : (i) => notUndefined(measurements[i]).start,
+        offset
+      );
+      return notUndefined(measurements[idx]);
+    };
+    this.getMaxScrollOffset = () => {
+      if (!this.scrollElement) return 0;
+      if ("scrollHeight" in this.scrollElement) {
+        return this.options.horizontal ? this.scrollElement.scrollWidth - this.scrollElement.clientWidth : this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
+      } else {
+        const doc = this.scrollElement.document.documentElement;
+        return this.options.horizontal ? doc.scrollWidth - this.scrollElement.innerWidth : doc.scrollHeight - this.scrollElement.innerHeight;
+      }
+    };
+    this.getVirtualDistanceFromEnd = () => {
+      return Math.max(
+        this.getTotalSize() - this.getSize() - this.getScrollOffset(),
+        0
+      );
+    };
+    this.getDistanceFromEnd = () => {
+      return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
+    };
+    this.isAtEnd = (threshold = this.options.scrollEndThreshold) => {
+      return this.getDistanceFromEnd() <= threshold;
+    };
+    this.getOffsetForAlignment = (toOffset, align, itemSize = 0) => {
+      if (!this.scrollElement) return 0;
+      const size = this.getSize();
+      const scrollOffset = this.getScrollOffset();
+      if (align === "auto") {
+        align = toOffset >= scrollOffset + size ? "end" : "start";
+      }
+      if (align === "center") {
+        toOffset += (itemSize - size) / 2;
+      } else if (align === "end") {
+        toOffset -= size;
+      }
+      const maxOffset = this.getMaxScrollOffset();
+      return Math.max(Math.min(maxOffset, toOffset), 0);
+    };
+    this.getOffsetForIndex = (index, align = "auto") => {
+      index = Math.max(0, Math.min(index, this.options.count - 1));
+      const size = this.getSize();
+      const scrollOffset = this.getScrollOffset();
+      const item = this.measurementsCache[index];
+      if (!item) return;
+      if (align === "auto") {
+        if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) {
+          align = "end";
+        } else if (item.start <= scrollOffset + this.options.scrollPaddingStart) {
+          align = "start";
+        } else {
+          return [scrollOffset, align];
+        }
+      }
+      if (align === "end" && index === this.options.count - 1) {
+        return [this.getMaxScrollOffset(), align];
+      }
+      const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
+      return [
+        this.getOffsetForAlignment(toOffset, align, item.size),
+        align
+      ];
+    };
+    this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
+      const offset = this.getOffsetForAlignment(toOffset, align);
+      const now = this.now();
+      this.scrollState = {
+        index: null,
+        align,
+        behavior,
+        startedAt: now,
+        lastTargetOffset: offset,
+        stableFrames: 0
+      };
+      this._scrollToOffset(offset, { adjustments: void 0, behavior });
+      this.scheduleScrollReconcile();
+    };
+    this.scrollToIndex = (index, {
+      align: initialAlign = "auto",
+      behavior = "auto"
+    } = {}) => {
+      index = Math.max(0, Math.min(index, this.options.count - 1));
+      const offsetInfo = this.getOffsetForIndex(index, initialAlign);
+      if (!offsetInfo) {
+        return;
+      }
+      const [offset, align] = offsetInfo;
+      const now = this.now();
+      this.scrollState = {
+        index,
+        align,
+        behavior,
+        startedAt: now,
+        lastTargetOffset: offset,
+        stableFrames: 0
+      };
+      this._scrollToOffset(offset, { adjustments: void 0, behavior });
+      this.scheduleScrollReconcile();
+    };
+    this.scrollBy = (delta, { behavior = "auto" } = {}) => {
+      const offset = this.getScrollOffset() + delta;
+      const now = this.now();
+      this.scrollState = {
+        index: null,
+        align: "start",
+        behavior,
+        startedAt: now,
+        lastTargetOffset: offset,
+        stableFrames: 0
+      };
+      this._scrollToOffset(offset, { adjustments: void 0, behavior });
+      this.scheduleScrollReconcile();
+    };
+    this.scrollToEnd = ({ behavior = "auto" } = {}) => {
+      if (this.options.count > 0) {
+        this.scrollToIndex(this.options.count - 1, {
+          align: "end",
+          behavior
+        });
+        return;
+      }
+      this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), {
+        behavior
+      });
+    };
+    this.getTotalSize = () => {
+      var _a;
+      const measurements = this.getMeasurements();
+      let end;
+      if (measurements.length === 0) {
+        end = this.options.paddingStart;
+      } else if (this.options.lanes === 1) {
+        const lastIdx = measurements.length - 1;
+        const flat = this._flatMeasurements;
+        if (flat != null) {
+          end = flat[lastIdx * 2] + flat[lastIdx * 2 + 1];
+        } else {
+          end = ((_a = measurements[lastIdx]) == null ? void 0 : _a.end) ?? 0;
+        }
+      } else {
+        const endByLane = Array(this.options.lanes).fill(null);
+        let endIndex = measurements.length - 1;
+        while (endIndex >= 0 && endByLane.some((val) => val === null)) {
+          const item = measurements[endIndex];
+          if (endByLane[item.lane] === null) {
+            endByLane[item.lane] = item.end;
+          }
+          endIndex--;
+        }
+        end = Math.max(...endByLane.filter((val) => val !== null));
+      }
+      return Math.max(
+        end - this.options.scrollMargin + this.options.paddingEnd,
+        0
+      );
+    };
+    this.takeSnapshot = () => {
+      const snapshot = [];
+      if (this.itemSizeCache.size === 0) return snapshot;
+      const m = this.getMeasurements();
+      for (const item of m) {
+        if (item && this.itemSizeCache.has(item.key)) {
+          snapshot.push({
+            index: item.index,
+            key: item.key,
+            start: item.start,
+            size: item.size,
+            end: item.end,
+            lane: item.lane
+          });
+        }
+      }
+      return snapshot;
+    };
+    this._scrollToOffset = (offset, {
+      adjustments,
+      behavior
+    }) => {
+      this._intendedScrollOffset = offset + (adjustments ?? 0);
+      this.options.scrollToFn(offset, { behavior, adjustments }, this);
+    };
+    this.measure = () => {
+      this.pendingMin = null;
+      this.itemSizeCache.clear();
+      this.laneAssignments.clear();
+      this.itemSizeCacheVersion++;
+      this.notify(false);
+    };
+    this.setOptions(opts);
+  }
+  applyScrollAdjustment(delta, behavior) {
+    if (delta === 0) return;
+    if (false) {
+      console.info("correction", delta);
+    }
+    if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
+      this._iosDeferredAdjustment += delta;
+    } else {
+      this._scrollToOffset(this.getScrollOffset(), {
+        adjustments: this.scrollAdjustments += delta,
+        behavior
+      });
+    }
+  }
+  scheduleScrollReconcile() {
+    if (!this.targetWindow) {
+      this.scrollState = null;
+      return;
+    }
+    if (this.rafId != null) return;
+    this.rafId = this.targetWindow.requestAnimationFrame(() => {
+      this.rafId = null;
+      this.reconcileScroll();
+    });
+  }
+  reconcileScroll() {
+    if (!this.scrollState) return;
+    const el = this.scrollElement;
+    if (!el) return;
+    const MAX_RECONCILE_MS = 5e3;
+    if (this.now() - this.scrollState.startedAt > MAX_RECONCILE_MS) {
+      this.scrollState = null;
+      return;
+    }
+    const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
+    const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
+    const STABLE_FRAMES = 1;
+    const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
+    if (!targetChanged && approxEqual(targetOffset, this.getScrollOffset())) {
+      this.scrollState.stableFrames++;
+      if (this.scrollState.stableFrames >= STABLE_FRAMES) {
+        if (this.getScrollOffset() !== targetOffset) {
+          this._scrollToOffset(targetOffset, {
+            adjustments: void 0,
+            behavior: "auto"
+          });
+        }
+        this.scrollState = null;
+        return;
+      }
+    } else {
+      this.scrollState.stableFrames = 0;
+      if (targetChanged) {
+        const viewport = this.getSize() || 600;
+        const distance = Math.abs(targetOffset - this.getScrollOffset());
+        const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
+        this.scrollState.lastTargetOffset = targetOffset;
+        if (!keepSmooth) {
+          this.scrollState.behavior = "auto";
+        }
+        this._scrollToOffset(targetOffset, {
+          adjustments: void 0,
+          behavior: keepSmooth ? "smooth" : "auto"
+        });
+      }
+    }
+    this.scheduleScrollReconcile();
+  }
+};
+var findNearestBinarySearch = (low, high, getCurrentValue, value) => {
+  while (low <= high) {
+    const middle = (low + high) / 2 | 0;
+    const currentValue = getCurrentValue(middle);
+    if (currentValue < value) {
+      low = middle + 1;
+    } else if (currentValue > value) {
+      high = middle - 1;
+    } else {
+      return middle;
+    }
+  }
+  if (low > 0) {
+    return low - 1;
+  } else {
+    return 0;
+  }
+};
+function calculateRange({
+  measurements,
+  outerSize,
+  scrollOffset,
+  lanes,
+  flat
+}) {
+  const lastIndex = measurements.length - 1;
+  const getStart = flat ? (index) => flat[index * 2] : (index) => measurements[index].start;
+  const getEnd = flat ? (index) => flat[index * 2] + flat[index * 2 + 1] : (index) => measurements[index].end;
+  if (measurements.length <= lanes) {
+    return {
+      startIndex: 0,
+      endIndex: lastIndex
+    };
+  }
+  let startIndex = findNearestBinarySearch(0, lastIndex, getStart, scrollOffset);
+  let endIndex = startIndex;
+  if (lanes === 1) {
+    while (endIndex < lastIndex && getEnd(endIndex) < scrollOffset + outerSize) {
+      endIndex++;
+    }
+  } else if (lanes > 1) {
+    const endPerLane = Array(lanes).fill(0);
+    while (endIndex < lastIndex && endPerLane.some((pos) => pos < scrollOffset + outerSize)) {
+      const item = measurements[endIndex];
+      endPerLane[item.lane] = item.end;
+      endIndex++;
+    }
+    const startPerLane = Array(lanes).fill(scrollOffset + outerSize);
+    while (startIndex >= 0 && startPerLane.some((pos) => pos >= scrollOffset)) {
+      const item = measurements[startIndex];
+      startPerLane[item.lane] = item.start;
+      startIndex--;
+    }
+    startIndex = Math.max(0, startIndex - startIndex % lanes);
+    endIndex = Math.min(lastIndex, endIndex + (lanes - 1 - endIndex % lanes));
+  }
+  return { startIndex, endIndex };
+}
+
+// node_modules/@tanstack/react-virtual/dist/esm/index.js
+var useIsomorphicLayoutEffect = typeof document !== "undefined" ? React.useLayoutEffect : React.useEffect;
+function useVirtualizerBase({
+  useFlushSync = true,
+  ...options
+}) {
+  const rerender = React.useReducer((x) => x + 1, 0)[1];
+  const resolvedOptions = {
+    ...options,
+    onChange: (instance2, sync) => {
+      var _a;
+      if (useFlushSync && sync) {
+        (0, import_react_dom.flushSync)(rerender);
+      } else {
+        rerender();
+      }
+      (_a = options.onChange) == null ? void 0 : _a.call(options, instance2, sync);
+    }
+  };
+  const [instance] = React.useState(
+    () => new Virtualizer(resolvedOptions)
+  );
+  instance.setOptions(resolvedOptions);
+  useIsomorphicLayoutEffect(() => {
+    return instance._didMount();
+  }, []);
+  useIsomorphicLayoutEffect(() => {
+    return instance._willUpdate();
+  });
+  return instance;
+}
+function useVirtualizer(options) {
+  return useVirtualizerBase({
+    observeElementRect,
+    observeElementOffset,
+    scrollToFn: elementScroll,
+    ...options
+  });
+}
+
+// src/ui/components/CaptureTable.tsx
+var import_jsx_runtime4 = __toESM(require_jsx_runtime());
+var ROW_HEIGHT = 38;
+function TableColumnControls({
+  visibleColumns,
+  onToggle
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "local-capture-column-controls", "aria-label": "\u8868\u683C\u5217\u663E\u793A", children: tableColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      "input",
+      {
+        type: "checkbox",
+        checked: visibleColumns.has(column.key),
+        onChange: () => onToggle(column.key)
+      }
+    ),
+    column.label
+  ] }, column.key)) });
+}
+function CaptureTable({
+  plugin,
+  items,
+  isSelected,
+  onToggleSelected,
+  visibleColumns,
+  sortKey,
+  sortDirection,
+  onSort
+}) {
+  const parentRef = (0, import_react4.useRef)(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 12
+  });
+  const virtualRows = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+  const paddingBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
+  const colCount = visibleColumns.size + 2;
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { ref: parentRef, className: "local-capture-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("table", { className: "local-capture-table", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("tr", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("th", { "aria-label": "\u9009\u62E9" }),
+      visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u65F6\u95F4", sortKey: "createdAt", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u7C7B\u578B", sortKey: "type", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u72B6\u6001", sortKey: "status", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u6807\u9898", sortKey: "title", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u6807\u7B7E", sortKey: "tags", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("th", { "aria-label": "\u64CD\u4F5C" })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("tbody", { children: [
+      paddingTop > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("tr", { "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { colSpan: colCount, style: { height: `${paddingTop}px`, padding: 0, border: 0 } }) }) : null,
+      virtualRows.map((virtualRow) => {
+        const item = items[virtualRow.index];
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("tr", { className: isSelected(item.id) ? "is-selected" : "", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked: isSelected(item.id),
+              onChange: () => onToggleSelected(item.id)
+            }
+          ) }),
+          visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: formatDisplayDateTime(item.createdAt) }) : null,
+          visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }) : null,
+          visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: statusText(item.status) }) : null,
+          visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: () => void plugin.openCaptureFile(item), children: item.title ?? "\u672A\u547D\u540D\u8BB0\u5F55" }) }) : null,
+          visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: item.tags.map((tag) => `#${tag}`).join(" ") }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => void plugin.pickTargetAndSend([item]), children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Send, { size: 14, "aria-hidden": "true" }) }) })
+        ] }, item.id);
+      }),
+      paddingBottom > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("tr", { "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { colSpan: colCount, style: { height: `${paddingBottom}px`, padding: 0, border: 0 } }) }) : null
+    ] })
+  ] }) });
+}
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort
+}) {
+  const suffix = activeKey === sortKey ? direction === "asc" ? " \u2191" : " \u2193" : "";
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("th", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { type: "button", onClick: () => onSort(sortKey), children: [
+    label,
+    suffix
+  ] }) });
+}
+
+// src/ui/components/Composer.tsx
+var import_jsx_runtime5 = __toESM(require_jsx_runtime());
+function Composer({
+  draft,
+  draftType,
+  onDraftChange,
+  onDraftTypeChange,
+  onSubmit
+}) {
+  function onKeyDown(event) {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      onSubmit();
+    }
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "local-capture-composer", "aria-label": "\u5FEB\u901F\u8BB0\u5F55", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+      "textarea",
+      {
+        className: "local-capture-input",
+        value: draft,
+        placeholder: "\u5199\u4E0B\u8BB0\u5F55\uFF0C\u652F\u6301 Markdown \u548C #\u6807\u7B7E\uFF08Ctrl/\u2318 + Enter \u4FDD\u5B58\uFF09",
+        onChange: (event) => onDraftChange(event.currentTarget.value),
+        onKeyDown
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "local-capture-composer-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "local-capture-segmented", role: "group", "aria-label": "\u8BB0\u5F55\u7C7B\u578B", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "button",
+          {
+            type: "button",
+            className: draftType === "note" ? "is-active" : "",
+            onClick: () => onDraftTypeChange("note"),
+            children: "\u7B14\u8BB0"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "button",
+          {
+            type: "button",
+            className: draftType === "task" ? "is-active" : "",
+            onClick: () => onDraftTypeChange("task"),
+            children: "\u4EFB\u52A1"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "mod-cta local-capture-primary",
+          onClick: onSubmit,
+          disabled: !draft.trim(),
+          title: "\u4FDD\u5B58\u8BB0\u5F55\uFF08Ctrl/\u2318 + Enter\uFF09",
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Save, { size: 15, "aria-hidden": "true" }),
+            "\u4FDD\u5B58"
+          ]
+        }
+      )
+    ] })
+  ] });
+}
+
+// src/ui/components/EmptyState.tsx
+var import_jsx_runtime6 = __toESM(require_jsx_runtime());
+function EmptyState({ variant, captureFolder, onClearFilters }) {
+  if (variant === "loading") {
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-empty", "aria-busy": "true", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "local-capture-spinner", "aria-hidden": "true" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "\u6B63\u5728\u52A0\u8F7D\u8BB0\u5F55\u2026" })
+    ] });
+  }
+  if (variant === "first-run") {
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-empty local-capture-empty-onboarding", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Inbox, { size: 32, "aria-hidden": "true" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "local-capture-empty-title", children: "\u8FD8\u6CA1\u6709\u4EFB\u4F55\u8BB0\u5F55" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("p", { className: "local-capture-empty-desc", children: [
+        "\u5728\u4E0A\u65B9\u8F93\u5165\u6846\u5199\u4E0B\u60F3\u6CD5\uFF0C\u6309",
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("kbd", { children: "Ctrl/\u2318 + Enter" }),
+        "\u5373\u53EF\u4FDD\u5B58\u3002\u8BB0\u5F55\u4F1A\u4EE5 Markdown \u6587\u4EF6\u5B58\u5230",
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("code", { children: captureFolder ?? "Captures" }),
+        "\u76EE\u5F55\uFF0C\u53EF\u968F\u65F6\u5728 Obsidian \u4E2D\u76F4\u63A5\u6253\u5F00\u3002"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("p", { className: "local-capture-empty-desc", children: [
+        "\u4E5F\u53EF\u4EE5\u4ECE\u547D\u4EE4\u9762\u677F\u8FD0\u884C ",
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: "\u65B0\u5EFA\u5FEB\u901F\u8BB0\u5F55" }),
+        " \u6216 ",
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: "\u4ECE\u526A\u8D34\u677F\u521B\u5EFA\u8BB0\u5F55" }),
+        "\u3002"
+      ] })
+    ] });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-empty", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(FileInput, { size: 28, "aria-hidden": "true" }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "\u6CA1\u6709\u5339\u914D\u7684\u8BB0\u5F55" }),
+    onClearFilters ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", className: "local-capture-empty-action", onClick: onClearFilters, children: "\u6E05\u9664\u7B5B\u9009" }) : null
+  ] });
+}
+
+// src/ui/components/FilterBar.tsx
+var import_jsx_runtime7 = __toESM(require_jsx_runtime());
+function FilterBar({
+  query,
+  onQueryChange,
+  status,
+  onStatusChange,
+  viewMode,
+  onViewModeChange,
+  onSelectVisible
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "local-capture-tools", "aria-label": "\u7B5B\u9009", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-search", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Search, { size: 15, "aria-hidden": "true" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+        "input",
+        {
+          value: query,
+          placeholder: "\u641C\u7D22\u8BB0\u5F55\u3001\u6807\u7B7E\u6216\u8DEF\u5F84",
+          onChange: (event) => onQueryChange(event.currentTarget.value)
+        }
+      )
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-tools-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-status-tabs", role: "tablist", "aria-label": "\u72B6\u6001\u7B5B\u9009", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusButton, { label: "\u6D3B\u8DC3", value: "active", status, onChange: onStatusChange }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusButton, { label: "\u5F52\u6863", value: "archived", status, onChange: onStatusChange }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusButton, { label: "\u5220\u9664", value: "deleted", status, onChange: onStatusChange }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusButton, { label: "\u5168\u90E8", value: "all", status, onChange: onStatusChange })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-view-tabs", role: "tablist", "aria-label": "\u89C6\u56FE\u5207\u6362", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: viewMode === "timeline" ? "is-active" : "",
+            title: "\u65F6\u95F4\u7EBF\u89C6\u56FE",
+            onClick: () => onViewModeChange("timeline"),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(List, { size: 14, "aria-hidden": "true" }),
+              "\u65F6\u95F4\u7EBF"
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+          "button",
+          {
+            type: "button",
+            className: viewMode === "table" ? "is-active" : "",
+            title: "\u8868\u683C\u89C6\u56FE",
+            onClick: () => onViewModeChange("table"),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Table2, { size: 14, "aria-hidden": "true" }),
+              "\u8868\u683C"
+            ]
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+        "button",
+        {
+          type: "button",
+          className: "local-capture-select-results",
+          title: "\u9009\u62E9/\u53D6\u6D88\u5F53\u524D\u7ED3\u679C",
+          onClick: onSelectVisible,
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(SlidersHorizontal, { size: 14, "aria-hidden": "true" }),
+            "\u9009\u62E9\u7ED3\u679C"
+          ]
+        }
+      )
+    ] })
+  ] });
+}
+function StatusButton({ label, value, status, onChange }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", className: status === value ? "is-active" : "", onClick: () => onChange(value), children: label });
+}
+
+// src/ui/components/Timeline.tsx
+var import_react7 = __toESM(require_react());
+
+// src/ui/components/CaptureCard.tsx
+var import_react6 = __toESM(require_react());
+
+// src/ui/shared/IconButton.tsx
+var import_obsidian6 = require("obsidian");
+var import_jsx_runtime8 = __toESM(require_jsx_runtime());
+function IconButton({ title, children, onClick }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+    "button",
+    {
+      type: "button",
+      className: "local-capture-icon-button",
+      title,
+      "aria-label": title,
+      onClick: () => {
+        const result = onClick();
+        if (result instanceof Promise) {
+          result.catch((error) => {
+            console.error(error);
+            new import_obsidian6.Notice("\u64CD\u4F5C\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u63A7\u5236\u53F0");
+          });
+        }
+      },
+      children
+    }
+  );
+}
+
+// src/ui/MarkdownPreview.tsx
+var import_obsidian7 = require("obsidian");
+var import_react5 = __toESM(require_react());
+var import_jsx_runtime9 = __toESM(require_jsx_runtime());
+function MarkdownPreview({ markdown, sourcePath, plugin }) {
+  const ref = (0, import_react5.useRef)(null);
+  (0, import_react5.useEffect)(() => {
+    const element = ref.current;
+    if (!element) return;
+    element.empty();
+    void import_obsidian7.MarkdownRenderer.render(plugin.app, markdown, element, sourcePath, plugin);
+  }, [markdown, plugin, sourcePath]);
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { ref, className: "local-capture-markdown markdown-rendered" });
+}
+
+// src/ui/components/CaptureCard.tsx
+var import_jsx_runtime10 = __toESM(require_jsx_runtime());
+function CaptureCard({ plugin, item, selected, onToggleSelected }) {
+  const [editing, setEditing] = (0, import_react6.useState)(false);
+  const [body, setBody] = (0, import_react6.useState)(item.bodyMarkdown);
+  (0, import_react6.useEffect)(() => {
+    if (!editing) {
+      setBody(item.bodyMarkdown);
+    }
+  }, [editing, item.bodyMarkdown]);
+  async function saveEdit() {
+    await plugin.captureService.updateBody(item, body);
+    setEditing(false);
+  }
+  async function toggleTask() {
+    await plugin.captureService.setTaskStatus(item, item.taskStatus === "done" ? "todo" : "done");
+  }
+  async function restore() {
+    await plugin.captureService.setStatus(item, "active");
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("article", { className: `local-capture-card ${selected ? "is-selected" : ""} status-${item.status}`, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("header", { className: "local-capture-card-header", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("label", { className: "local-capture-select", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("input", { type: "checkbox", checked: selected, onChange: onToggleSelected }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", {})
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "local-capture-card-meta", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("time", { children: formatDisplayDateTime(item.createdAt) }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }),
+        item.status !== "active" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: statusText(item.status) }) : null
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "local-capture-card-actions", children: [
+        item.type === "task" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          IconButton,
+          {
+            title: item.taskStatus === "done" ? "\u6807\u8BB0\u4E3A\u5F85\u529E" : "\u6807\u8BB0\u4E3A\u5B8C\u6210",
+            onClick: toggleTask,
+            children: item.taskStatus === "done" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(CircleCheck, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Circle, { size: 16 })
+          }
+        ) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          IconButton,
+          {
+            title: item.pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u7F6E\u9876",
+            onClick: () => plugin.captureService.setPinned(item, !item.pinned),
+            children: item.pinned ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(PinOff, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Pin, { size: 16 })
+          }
+        ),
+        editing ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u4FDD\u5B58\u7F16\u8F91", onClick: saveEdit, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Check, { size: 16 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u53D6\u6D88\u7F16\u8F91", onClick: () => setEditing(false), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(X, { size: 16 }) })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u7F16\u8F91", onClick: () => setEditing(true), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Pencil, { size: 16 }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.pickTargetAndSend([item]), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Send, { size: 16 }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u6253\u5F00\u6E90\u6587\u4EF6", onClick: () => plugin.openCaptureFile(item), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ExternalLink, { size: 16 }) }),
+        item.status === "active" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u5F52\u6863", onClick: () => plugin.captureService.setStatus(item, "archived"), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Archive, { size: 16 }) }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u6062\u590D", onClick: restore, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ArchiveRestore, { size: 16 }) }),
+        item.status !== "deleted" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u5220\u9664", onClick: () => plugin.captureService.setStatus(item, "deleted"), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Trash2, { size: 16 }) }) : null
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-card-body", children: editing ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+      "textarea",
+      {
+        className: "local-capture-edit",
+        value: body,
+        onChange: (event) => setBody(event.currentTarget.value)
+      }
+    ) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MarkdownPreview, { markdown: item.bodyMarkdown, sourcePath: item.path, plugin }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("footer", { className: "local-capture-card-footer", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: formatDisplayTime(item.createdAt) }),
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-tags", children: item.tags.map((tag) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { children: [
+        "#",
+        tag
+      ] }, tag)) })
+    ] })
+  ] });
+}
+
+// src/ui/components/Timeline.tsx
+var import_jsx_runtime11 = __toESM(require_jsx_runtime());
+function Timeline({ plugin, items, isSelected, onToggleSelected }) {
+  const parentRef = (0, import_react7.useRef)(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 220,
+    overscan: 8
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { ref: parentRef, className: "local-capture-timeline", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    "div",
+    {
+      className: "local-capture-virtual-space",
+      style: {
+        height: `${virtualizer.getTotalSize()}px`
+      },
+      children: virtualizer.getVirtualItems().map((virtualItem) => {
+        const item = items[virtualItem.index];
+        return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+          "div",
+          {
+            className: "local-capture-virtual-row",
+            "data-index": virtualItem.index,
+            ref: virtualizer.measureElement,
+            style: {
+              transform: `translateY(${virtualItem.start}px)`
+            },
+            children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+              CaptureCard,
+              {
+                plugin,
+                item,
+                selected: isSelected(item.id),
+                onToggleSelected: () => onToggleSelected(item.id)
+              }
+            )
+          },
+          item.id
+        );
+      })
+    }
+  ) });
+}
 
 // node_modules/fuse.js/dist/fuse.mjs
 function isArray(value) {
@@ -10266,1678 +12524,193 @@ Fuse.use = function(...plugins) {
   plugins.forEach((plugin) => register(plugin));
 };
 
-// node_modules/lucide-react/dist/esm/createLucideIcon.js
-var import_react2 = __toESM(require_react());
-
-// node_modules/lucide-react/dist/esm/shared/src/utils.js
-var toKebabCase = (string) => string.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
-var mergeClasses = (...classes) => classes.filter((className, index, array) => {
-  return Boolean(className) && className.trim() !== "" && array.indexOf(className) === index;
-}).join(" ").trim();
-
-// node_modules/lucide-react/dist/esm/Icon.js
-var import_react = __toESM(require_react());
-
-// node_modules/lucide-react/dist/esm/defaultAttributes.js
-var defaultAttributes = {
-  xmlns: "http://www.w3.org/2000/svg",
-  width: 24,
-  height: 24,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round",
-  strokeLinejoin: "round"
-};
-
-// node_modules/lucide-react/dist/esm/Icon.js
-var Icon = (0, import_react.forwardRef)(
-  ({
-    color = "currentColor",
-    size = 24,
-    strokeWidth = 2,
-    absoluteStrokeWidth,
-    className = "",
-    children,
-    iconNode,
-    ...rest
-  }, ref) => {
-    return (0, import_react.createElement)(
-      "svg",
-      {
-        ref,
-        ...defaultAttributes,
-        width: size,
-        height: size,
-        stroke: color,
-        strokeWidth: absoluteStrokeWidth ? Number(strokeWidth) * 24 / Number(size) : strokeWidth,
-        className: mergeClasses("lucide", className),
-        ...rest
-      },
-      [
-        ...iconNode.map(([tag, attrs]) => (0, import_react.createElement)(tag, attrs)),
-        ...Array.isArray(children) ? children : [children]
-      ]
-    );
-  }
-);
-
-// node_modules/lucide-react/dist/esm/createLucideIcon.js
-var createLucideIcon = (iconName, iconNode) => {
-  const Component = (0, import_react2.forwardRef)(
-    ({ className, ...props }, ref) => (0, import_react2.createElement)(Icon, {
-      ref,
-      iconNode,
-      className: mergeClasses(`lucide-${toKebabCase(iconName)}`, className),
-      ...props
-    })
-  );
-  Component.displayName = `${iconName}`;
-  return Component;
-};
-
-// node_modules/lucide-react/dist/esm/icons/archive-restore.js
-var ArchiveRestore = createLucideIcon("ArchiveRestore", [
-  ["rect", { width: "20", height: "5", x: "2", y: "3", rx: "1", key: "1wp1u1" }],
-  ["path", { d: "M4 8v11a2 2 0 0 0 2 2h2", key: "tvwodi" }],
-  ["path", { d: "M20 8v11a2 2 0 0 1-2 2h-2", key: "1gkqxj" }],
-  ["path", { d: "m9 15 3-3 3 3", key: "1pd0qc" }],
-  ["path", { d: "M12 12v9", key: "192myk" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/archive.js
-var Archive = createLucideIcon("Archive", [
-  ["rect", { width: "20", height: "5", x: "2", y: "3", rx: "1", key: "1wp1u1" }],
-  ["path", { d: "M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8", key: "1s80jp" }],
-  ["path", { d: "M10 12h4", key: "a56b0p" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/calendar-plus.js
-var CalendarPlus = createLucideIcon("CalendarPlus", [
-  ["path", { d: "M8 2v4", key: "1cmpym" }],
-  ["path", { d: "M16 2v4", key: "4m81vk" }],
-  ["path", { d: "M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8", key: "3spt84" }],
-  ["path", { d: "M3 10h18", key: "8toen8" }],
-  ["path", { d: "M16 19h6", key: "xwg31i" }],
-  ["path", { d: "M19 16v6", key: "tddt3s" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/check.js
-var Check = createLucideIcon("Check", [["path", { d: "M20 6 9 17l-5-5", key: "1gmf2c" }]]);
-
-// node_modules/lucide-react/dist/esm/icons/circle-check.js
-var CircleCheck = createLucideIcon("CircleCheck", [
-  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }],
-  ["path", { d: "m9 12 2 2 4-4", key: "dzmm74" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/circle.js
-var Circle = createLucideIcon("Circle", [
-  ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/columns-3.js
-var Columns3 = createLucideIcon("Columns3", [
-  ["rect", { width: "18", height: "18", x: "3", y: "3", rx: "2", key: "afitv7" }],
-  ["path", { d: "M9 3v18", key: "fh3hqa" }],
-  ["path", { d: "M15 3v18", key: "14nvp0" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/external-link.js
-var ExternalLink = createLucideIcon("ExternalLink", [
-  ["path", { d: "M15 3h6v6", key: "1q9fwt" }],
-  ["path", { d: "M10 14 21 3", key: "gplh6r" }],
-  ["path", { d: "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6", key: "a6xqqp" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/file-input.js
-var FileInput = createLucideIcon("FileInput", [
-  ["path", { d: "M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4", key: "1pf5j1" }],
-  ["path", { d: "M14 2v4a2 2 0 0 0 2 2h4", key: "tnqrlb" }],
-  ["path", { d: "M2 15h10", key: "jfw4w8" }],
-  ["path", { d: "m9 18 3-3-3-3", key: "112psh" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/list-todo.js
-var ListTodo = createLucideIcon("ListTodo", [
-  ["rect", { x: "3", y: "5", width: "6", height: "6", rx: "1", key: "1defrl" }],
-  ["path", { d: "m3 17 2 2 4-4", key: "1jhpwq" }],
-  ["path", { d: "M13 6h8", key: "15sg57" }],
-  ["path", { d: "M13 12h8", key: "h98zly" }],
-  ["path", { d: "M13 18h8", key: "oe0vm4" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/list.js
-var List = createLucideIcon("List", [
-  ["path", { d: "M3 12h.01", key: "nlz23k" }],
-  ["path", { d: "M3 18h.01", key: "1tta3j" }],
-  ["path", { d: "M3 6h.01", key: "1rqtza" }],
-  ["path", { d: "M8 12h13", key: "1za7za" }],
-  ["path", { d: "M8 18h13", key: "1lx6n3" }],
-  ["path", { d: "M8 6h13", key: "ik3vkj" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/pencil.js
-var Pencil = createLucideIcon("Pencil", [
-  [
-    "path",
-    {
-      d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
-      key: "1a8usu"
-    }
-  ],
-  ["path", { d: "m15 5 4 4", key: "1mk7zo" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/pin-off.js
-var PinOff = createLucideIcon("PinOff", [
-  ["path", { d: "M12 17v5", key: "bb1du9" }],
-  ["path", { d: "M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89", key: "znwnzq" }],
-  ["path", { d: "m2 2 20 20", key: "1ooewy" }],
-  [
-    "path",
-    {
-      d: "M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11",
-      key: "c9qhm2"
-    }
-  ]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/pin.js
-var Pin = createLucideIcon("Pin", [
-  ["path", { d: "M12 17v5", key: "bb1du9" }],
-  [
-    "path",
-    {
-      d: "M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z",
-      key: "1nkz8b"
-    }
-  ]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/refresh-ccw.js
-var RefreshCcw = createLucideIcon("RefreshCcw", [
-  ["path", { d: "M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "14sxne" }],
-  ["path", { d: "M3 3v5h5", key: "1xhq8a" }],
-  ["path", { d: "M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16", key: "1hlbsb" }],
-  ["path", { d: "M16 16h5v5", key: "ccwih5" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/rotate-ccw.js
-var RotateCcw = createLucideIcon("RotateCcw", [
-  ["path", { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", key: "1357e3" }],
-  ["path", { d: "M3 3v5h5", key: "1xhq8a" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/save.js
-var Save = createLucideIcon("Save", [
-  [
-    "path",
-    {
-      d: "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
-      key: "1c8476"
-    }
-  ],
-  ["path", { d: "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7", key: "1ydtos" }],
-  ["path", { d: "M7 3v4a1 1 0 0 0 1 1h7", key: "t51u73" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/search.js
-var Search = createLucideIcon("Search", [
-  ["circle", { cx: "11", cy: "11", r: "8", key: "4ej97u" }],
-  ["path", { d: "m21 21-4.3-4.3", key: "1qie3q" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/send.js
-var Send = createLucideIcon("Send", [
-  [
-    "path",
-    {
-      d: "M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z",
-      key: "1ffxy3"
-    }
-  ],
-  ["path", { d: "m21.854 2.147-10.94 10.939", key: "12cjpa" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/sliders-horizontal.js
-var SlidersHorizontal = createLucideIcon("SlidersHorizontal", [
-  ["line", { x1: "21", x2: "14", y1: "4", y2: "4", key: "obuewd" }],
-  ["line", { x1: "10", x2: "3", y1: "4", y2: "4", key: "1q6298" }],
-  ["line", { x1: "21", x2: "12", y1: "12", y2: "12", key: "1iu8h1" }],
-  ["line", { x1: "8", x2: "3", y1: "12", y2: "12", key: "ntss68" }],
-  ["line", { x1: "21", x2: "16", y1: "20", y2: "20", key: "14d8ph" }],
-  ["line", { x1: "12", x2: "3", y1: "20", y2: "20", key: "m0wm8r" }],
-  ["line", { x1: "14", x2: "14", y1: "2", y2: "6", key: "14e1ph" }],
-  ["line", { x1: "8", x2: "8", y1: "10", y2: "14", key: "1i6ji0" }],
-  ["line", { x1: "16", x2: "16", y1: "18", y2: "22", key: "1lctlv" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/star.js
-var Star = createLucideIcon("Star", [
-  [
-    "path",
-    {
-      d: "M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z",
-      key: "r04s7s"
-    }
-  ]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/table-2.js
-var Table2 = createLucideIcon("Table2", [
-  [
-    "path",
-    {
-      d: "M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18",
-      key: "gugj83"
-    }
-  ]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/tags.js
-var Tags = createLucideIcon("Tags", [
-  ["path", { d: "m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19", key: "1cbfv1" }],
-  [
-    "path",
-    {
-      d: "M9.586 5.586A2 2 0 0 0 8.172 5H3a1 1 0 0 0-1 1v5.172a2 2 0 0 0 .586 1.414L8.29 18.29a2.426 2.426 0 0 0 3.42 0l3.58-3.58a2.426 2.426 0 0 0 0-3.42z",
-      key: "135mg7"
-    }
-  ],
-  ["circle", { cx: "6.5", cy: "9.5", r: ".5", fill: "currentColor", key: "5pm5xn" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/trash-2.js
-var Trash2 = createLucideIcon("Trash2", [
-  ["path", { d: "M3 6h18", key: "d0wm0j" }],
-  ["path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", key: "4alrt4" }],
-  ["path", { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", key: "v07s0e" }],
-  ["line", { x1: "10", x2: "10", y1: "11", y2: "17", key: "1uufr5" }],
-  ["line", { x1: "14", x2: "14", y1: "11", y2: "17", key: "xtxkd" }]
-]);
-
-// node_modules/lucide-react/dist/esm/icons/x.js
-var X = createLucideIcon("X", [
-  ["path", { d: "M18 6 6 18", key: "1bl5f8" }],
-  ["path", { d: "m6 6 12 12", key: "d8bk6v" }]
-]);
-
-// src/ui/LocalCaptureApp.tsx
-var import_obsidian7 = require("obsidian");
-var import_react4 = __toESM(require_react());
-
-// node_modules/@tanstack/react-virtual/dist/esm/index.js
-var React = __toESM(require_react(), 1);
-var import_react_dom = __toESM(require_react_dom(), 1);
-
-// node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
-function createLazyMeasurementsView(count, flat, getItemKey) {
-  const cache = new Array(count);
-  return new Proxy(cache, {
-    get(target, prop, receiver) {
-      if (typeof prop === "string") {
-        const c = prop.charCodeAt(0);
-        if (c >= 48 && c <= 57) {
-          const i = +prop;
-          if (Number.isInteger(i) && i >= 0 && i < count) {
-            let v = target[i];
-            if (!v) {
-              const s = flat[i * 2];
-              v = target[i] = {
-                index: i,
-                key: getItemKey(i),
-                start: s,
-                size: flat[i * 2 + 1],
-                end: s + flat[i * 2 + 1],
-                lane: 0
-              };
-            }
-            return v;
-          }
-        }
-        if (prop === "length") return count;
-      }
-      return Reflect.get(target, prop, receiver);
-    }
-  });
-}
-
-// node_modules/@tanstack/virtual-core/dist/esm/utils.js
-function memo(getDeps, fn, opts) {
-  let deps = opts.initialDeps ?? [];
-  let result;
-  let isInitial = true;
-  function memoizedFunction() {
-    var _a;
-    const debugEnabled = false;
-    let depTime = 0;
-    if (debugEnabled) depTime = Date.now();
-    const newDeps = getDeps();
-    const depsChanged = newDeps.length !== deps.length || newDeps.some((dep, index) => deps[index] !== dep);
-    if (!depsChanged) {
-      return result;
-    }
-    deps = newDeps;
-    let resultTime = 0;
-    if (debugEnabled) resultTime = Date.now();
-    result = fn(...newDeps);
-    if (debugEnabled) {
-      const depEndTime = Math.round((Date.now() - depTime) * 100) / 100;
-      const resultEndTime = Math.round((Date.now() - resultTime) * 100) / 100;
-      const resultFpsPercentage = resultEndTime / 16;
-      const pad2 = (str, num) => {
-        str = String(str);
-        while (str.length < num) {
-          str = " " + str;
-        }
-        return str;
-      };
-      console.info(
-        `%c\u23F1 ${pad2(resultEndTime, 5)} /${pad2(depEndTime, 5)} ms`,
-        `
-            font-size: .6rem;
-            font-weight: bold;
-            color: hsl(${Math.max(
-          0,
-          Math.min(120 - 120 * resultFpsPercentage, 120)
-        )}deg 100% 31%);`,
-        opts == null ? void 0 : opts.key
-      );
-    }
-    if ((opts == null ? void 0 : opts.onChange) && !(isInitial && opts.skipInitialOnChange)) {
-      opts.onChange(result);
-    }
-    isInitial = false;
-    return result;
-  }
-  memoizedFunction.updateDeps = (newDeps) => {
-    deps = newDeps;
-  };
-  return memoizedFunction;
-}
-function notUndefined(value, msg) {
-  if (value === void 0) {
-    throw new Error(`Unexpected undefined${msg ? `: ${msg}` : ""}`);
-  } else {
-    return value;
-  }
-}
-var approxEqual = (a, b) => Math.abs(a - b) < 1.01;
-var debounce = (targetWindow, fn, ms) => {
-  let timeoutId;
-  return function(...args) {
-    targetWindow.clearTimeout(timeoutId);
-    timeoutId = targetWindow.setTimeout(() => fn.apply(this, args), ms);
-  };
-};
-
-// node_modules/@tanstack/virtual-core/dist/esm/index.js
-var _isIOSResult;
-var isIOSWebKit = () => {
-  if (_isIOSResult !== void 0) return _isIOSResult;
-  if (typeof navigator === "undefined") return _isIOSResult = false;
-  if (/iP(hone|od|ad)/.test(navigator.userAgent)) return _isIOSResult = true;
-  const mtp = navigator.maxTouchPoints;
-  return _isIOSResult = navigator.platform === "MacIntel" && mtp !== void 0 && mtp > 0;
-};
-var getRect = (element) => {
-  const { offsetWidth, offsetHeight } = element;
-  return { width: offsetWidth, height: offsetHeight };
-};
-var defaultKeyExtractor = (index) => index;
-var defaultRangeExtractor = (range) => {
-  const start = Math.max(range.startIndex - range.overscan, 0);
-  const end = Math.min(range.endIndex + range.overscan, range.count - 1);
-  const len = end - start + 1;
-  const arr = new Array(len);
-  for (let i = 0; i < len; i++) {
-    arr[i] = start + i;
-  }
-  return arr;
-};
-var observeElementRect = (instance, cb) => {
-  const element = instance.scrollElement;
-  if (!element) {
-    return;
-  }
-  const targetWindow = instance.targetWindow;
-  if (!targetWindow) {
-    return;
-  }
-  const handler = (rect) => {
-    const { width, height } = rect;
-    cb({ width: Math.round(width), height: Math.round(height) });
-  };
-  handler(getRect(element));
-  if (!targetWindow.ResizeObserver) {
+// src/ui/hooks/useCaptureFilters.ts
+var import_react8 = __toESM(require_react());
+function useCaptureFilters(items) {
+  const [query, setQuery] = (0, import_react8.useState)("");
+  const [status, setStatus] = (0, import_react8.useState)("active");
+  const [selectedDay, setSelectedDay] = (0, import_react8.useState)();
+  const [debouncedQuery, setDebouncedQuery] = (0, import_react8.useState)("");
+  const timer = (0, import_react8.useRef)(null);
+  (0, import_react8.useEffect)(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setDebouncedQuery(query), 150);
     return () => {
+      if (timer.current) clearTimeout(timer.current);
     };
-  }
-  const observer = new targetWindow.ResizeObserver((entries) => {
-    const run = () => {
-      const entry = entries[0];
-      if (entry == null ? void 0 : entry.borderBoxSize) {
-        const box = entry.borderBoxSize[0];
-        if (box) {
-          handler({ width: box.inlineSize, height: box.blockSize });
-          return;
-        }
-      }
-      handler(getRect(element));
-    };
-    instance.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
-  });
-  observer.observe(element, { box: "border-box" });
-  return () => {
-    observer.unobserve(element);
-  };
-};
-var addEventListenerOptions = {
-  passive: true
-};
-var supportsScrollend = typeof window == "undefined" ? true : "onscrollend" in window;
-var observeOffset = (instance, cb, readOffset) => {
-  const element = instance.scrollElement;
-  if (!element) {
-    return;
-  }
-  const targetWindow = instance.targetWindow;
-  if (!targetWindow) {
-    return;
-  }
-  const registerScrollendEvent = instance.options.useScrollendEvent && supportsScrollend;
-  let offset = 0;
-  const fallback = registerScrollendEvent ? null : debounce(
-    targetWindow,
-    () => cb(offset, false),
-    instance.options.isScrollingResetDelay
-  );
-  const createHandler = (isScrolling) => () => {
-    offset = readOffset(element);
-    fallback == null ? void 0 : fallback();
-    cb(offset, isScrolling);
-  };
-  const handler = createHandler(true);
-  const endHandler = createHandler(false);
-  element.addEventListener("scroll", handler, addEventListenerOptions);
-  if (registerScrollendEvent) {
-    element.addEventListener("scrollend", endHandler, addEventListenerOptions);
-  }
-  return () => {
-    element.removeEventListener("scroll", handler);
-    if (registerScrollendEvent) {
-      element.removeEventListener("scrollend", endHandler);
-    }
-  };
-};
-var observeElementOffset = (instance, cb) => observeOffset(instance, cb, (el) => {
-  const { horizontal, isRtl } = instance.options;
-  return horizontal ? el.scrollLeft * (isRtl && -1 || 1) : el.scrollTop;
-});
-var measureElement = (element, entry, instance) => {
-  if (entry == null ? void 0 : entry.borderBoxSize) {
-    const box = entry.borderBoxSize[0];
-    if (box) {
-      const size = Math.round(
-        box[instance.options.horizontal ? "inlineSize" : "blockSize"]
-      );
-      return size;
-    }
-  }
-  return element[instance.options.horizontal ? "offsetWidth" : "offsetHeight"];
-};
-var scrollWithAdjustments = (offset, {
-  adjustments = 0,
-  behavior
-}, instance) => {
-  var _a, _b;
-  (_b = (_a = instance.scrollElement) == null ? void 0 : _a.scrollTo) == null ? void 0 : _b.call(_a, {
-    [instance.options.horizontal ? "left" : "top"]: offset + adjustments,
-    behavior
-  });
-};
-var elementScroll = scrollWithAdjustments;
-var Virtualizer = class {
-  constructor(opts) {
-    this.unsubs = [];
-    this.scrollElement = null;
-    this.targetWindow = null;
-    this.isScrolling = false;
-    this.scrollState = null;
-    this.measurementsCache = [];
-    this._flatMeasurements = null;
-    this.itemSizeCache = /* @__PURE__ */ new Map();
-    this.itemSizeCacheVersion = 0;
-    this.laneAssignments = /* @__PURE__ */ new Map();
-    this.pendingMin = null;
-    this.prevLanes = void 0;
-    this.lanesChangedFlag = false;
-    this.lanesSettling = false;
-    this.pendingScrollAnchor = null;
-    this.scrollRect = null;
-    this.scrollOffset = null;
-    this.scrollDirection = null;
-    this.scrollAdjustments = 0;
-    this._iosDeferredAdjustment = 0;
-    this._iosTouching = false;
-    this._iosJustTouchEnded = false;
-    this._iosTouchEndTimerId = null;
-    this._intendedScrollOffset = null;
-    this.elementsCache = /* @__PURE__ */ new Map();
-    this.now = () => {
-      var _a, _b, _c;
-      return ((_c = (_b = (_a = this.targetWindow) == null ? void 0 : _a.performance) == null ? void 0 : _b.now) == null ? void 0 : _c.call(_b)) ?? Date.now();
-    };
-    this.observer = /* @__PURE__ */ (() => {
-      let _ro = null;
-      const get2 = () => {
-        if (_ro) {
-          return _ro;
-        }
-        if (!this.targetWindow || !this.targetWindow.ResizeObserver) {
-          return null;
-        }
-        return _ro = new this.targetWindow.ResizeObserver((entries) => {
-          entries.forEach((entry) => {
-            const run = () => {
-              const node = entry.target;
-              const index = this.indexFromElement(node);
-              if (!node.isConnected) {
-                this.observer.unobserve(node);
-                for (const [cacheKey, cachedNode] of this.elementsCache) {
-                  if (cachedNode === node) {
-                    this.elementsCache.delete(cacheKey);
-                    break;
-                  }
-                }
-                return;
-              }
-              if (this.shouldMeasureDuringScroll(index)) {
-                this.resizeItem(
-                  index,
-                  this.options.measureElement(node, entry, this)
-                );
-              }
-            };
-            this.options.useAnimationFrameWithResizeObserver ? requestAnimationFrame(run) : run();
-          });
-        });
-      };
-      return {
-        disconnect: () => {
-          var _a;
-          (_a = get2()) == null ? void 0 : _a.disconnect();
-          _ro = null;
-        },
-        observe: (target) => {
-          var _a;
-          return (_a = get2()) == null ? void 0 : _a.observe(target, { box: "border-box" });
-        },
-        unobserve: (target) => {
-          var _a;
-          return (_a = get2()) == null ? void 0 : _a.unobserve(target);
-        }
-      };
-    })();
-    this.range = null;
-    this.setOptions = (opts2) => {
-      var _a, _b;
-      const merged = {
-        debug: false,
-        initialOffset: 0,
-        overscan: 1,
-        paddingStart: 0,
-        paddingEnd: 0,
-        scrollPaddingStart: 0,
-        scrollPaddingEnd: 0,
-        horizontal: false,
-        getItemKey: defaultKeyExtractor,
-        rangeExtractor: defaultRangeExtractor,
-        onChange: () => {
-        },
-        measureElement,
-        initialRect: { width: 0, height: 0 },
-        scrollMargin: 0,
-        gap: 0,
-        indexAttribute: "data-index",
-        initialMeasurementsCache: [],
-        lanes: 1,
-        anchorTo: "start",
-        followOnAppend: false,
-        scrollEndThreshold: 1,
-        isScrollingResetDelay: 150,
-        enabled: true,
-        isRtl: false,
-        useScrollendEvent: false,
-        useAnimationFrameWithResizeObserver: false,
-        laneAssignmentMode: "estimate"
-      };
-      for (const key in opts2) {
-        const v = opts2[key];
-        if (v !== void 0) merged[key] = v;
-      }
-      const prevOptions = this.options;
-      let anchor = null;
-      let followOnAppend = null;
-      if (prevOptions !== void 0 && prevOptions.enabled && merged.enabled && merged.anchorTo === "end" && this.scrollElement !== null) {
-        const prevCount = prevOptions.count;
-        const nextCount = merged.count;
-        const measurements = this.getMeasurements();
-        const prevFirstKey = prevCount > 0 ? ((_a = measurements[0]) == null ? void 0 : _a.key) ?? prevOptions.getItemKey(0) : null;
-        const prevLastKey = prevCount > 0 ? ((_b = measurements[prevCount - 1]) == null ? void 0 : _b.key) ?? prevOptions.getItemKey(prevCount - 1) : null;
-        const didCountChange = nextCount !== prevCount;
-        const didEdgeKeysChange = didCountChange || prevCount > 0 && nextCount > 0 && (merged.getItemKey(0) !== prevFirstKey || merged.getItemKey(nextCount - 1) !== prevLastKey);
-        if (didEdgeKeysChange) {
-          const item = prevCount > 0 ? this.getVirtualItemForOffset(this.getScrollOffset()) ?? measurements[0] : null;
-          if (item) {
-            anchor = [item.key, this.getScrollOffset() - item.start];
-          }
-          const behavior = merged.followOnAppend === true ? "auto" : merged.followOnAppend || null;
-          if (behavior && nextCount > prevCount && this.isAtEnd(prevOptions.scrollEndThreshold) && (prevCount === 0 || merged.getItemKey(nextCount - 1) !== prevLastKey)) {
-            followOnAppend = behavior;
-          }
-        }
-      }
-      this.options = merged;
-      if (anchor || followOnAppend) {
-        this.pendingScrollAnchor = [
-          (anchor == null ? void 0 : anchor[0]) ?? null,
-          (anchor == null ? void 0 : anchor[1]) ?? 0,
-          followOnAppend
-        ];
-      }
-    };
-    this.notify = (sync) => {
-      var _a, _b;
-      (_b = (_a = this.options).onChange) == null ? void 0 : _b.call(_a, this, sync);
-    };
-    this.maybeNotify = memo(
-      () => {
-        this.calculateRange();
-        return [
-          this.isScrolling,
-          this.range ? this.range.startIndex : null,
-          this.range ? this.range.endIndex : null
-        ];
-      },
-      (isScrolling) => {
-        this.notify(isScrolling);
-      },
-      {
-        key: false,
-        debug: () => this.options.debug,
-        initialDeps: [
-          this.isScrolling,
-          this.range ? this.range.startIndex : null,
-          this.range ? this.range.endIndex : null
-        ]
-      }
-    );
-    this.cleanup = () => {
-      this.unsubs.filter(Boolean).forEach((d) => d());
-      this.unsubs = [];
-      this.observer.disconnect();
-      if (this.rafId != null && this.targetWindow) {
-        this.targetWindow.cancelAnimationFrame(this.rafId);
-        this.rafId = null;
-      }
-      this.scrollState = null;
-      this.scrollElement = null;
-      this.targetWindow = null;
-    };
-    this._didMount = () => {
-      return () => {
-        this.cleanup();
-      };
-    };
-    this._willUpdate = () => {
-      var _a;
-      const scrollElement = this.options.enabled ? this.options.getScrollElement() : null;
-      if (this.scrollElement !== scrollElement) {
-        this.cleanup();
-        if (!scrollElement) {
-          this.maybeNotify();
-          return;
-        }
-        this.scrollElement = scrollElement;
-        if (this.scrollElement && "ownerDocument" in this.scrollElement) {
-          this.targetWindow = this.scrollElement.ownerDocument.defaultView;
-        } else {
-          this.targetWindow = ((_a = this.scrollElement) == null ? void 0 : _a.window) ?? null;
-        }
-        this.elementsCache.forEach((cached) => {
-          this.observer.observe(cached);
-        });
-        this.unsubs.push(
-          this.options.observeElementRect(this, (rect) => {
-            this.scrollRect = rect;
-            this.maybeNotify();
-          })
-        );
-        this.unsubs.push(
-          this.options.observeElementOffset(this, (offset, isScrolling) => {
-            if (this._intendedScrollOffset !== null && Math.abs(offset - this._intendedScrollOffset) < 1.5) {
-              offset = this._intendedScrollOffset;
-            }
-            this._intendedScrollOffset = null;
-            this.scrollAdjustments = 0;
-            this.scrollDirection = isScrolling ? this.getScrollOffset() < offset ? "forward" : "backward" : null;
-            this.scrollOffset = offset;
-            this.isScrolling = isScrolling;
-            this._flushIosDeferredIfReady();
-            if (this.scrollState) {
-              this.scheduleScrollReconcile();
-            }
-            this.maybeNotify();
-          })
-        );
-        if ("addEventListener" in this.scrollElement) {
-          const scrollEl = this.scrollElement;
-          const onTouchStart = () => {
-            this._iosTouching = true;
-            this._iosJustTouchEnded = false;
-            if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
-              this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
-              this._iosTouchEndTimerId = null;
-            }
-          };
-          const onTouchEnd = () => {
-            this._iosTouching = false;
-            if (!isIOSWebKit() || this.targetWindow == null) {
-              return;
-            }
-            this._iosJustTouchEnded = true;
-            this._iosTouchEndTimerId = this.targetWindow.setTimeout(() => {
-              this._iosJustTouchEnded = false;
-              this._iosTouchEndTimerId = null;
-              this._flushIosDeferredIfReady();
-            }, 150);
-          };
-          scrollEl.addEventListener(
-            "touchstart",
-            onTouchStart,
-            addEventListenerOptions
-          );
-          scrollEl.addEventListener(
-            "touchend",
-            onTouchEnd,
-            addEventListenerOptions
-          );
-          this.unsubs.push(() => {
-            scrollEl.removeEventListener("touchstart", onTouchStart);
-            scrollEl.removeEventListener("touchend", onTouchEnd);
-            if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
-              this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
-              this._iosTouchEndTimerId = null;
-            }
-          });
-        }
-        this._scrollToOffset(this.getScrollOffset(), {
-          adjustments: void 0,
-          behavior: void 0
-        });
-      }
-      const anchor = this.pendingScrollAnchor;
-      this.pendingScrollAnchor = null;
-      if (anchor && this.scrollElement && this.options.enabled) {
-        const [key, offset, followOnAppend] = anchor;
-        if (key !== null) {
-          const { count, getItemKey } = this.options;
-          let index = 0;
-          while (index < count && getItemKey(index) !== key) {
-            index++;
-          }
-          const item = index < count ? this.getMeasurements()[index] : void 0;
-          if (item) {
-            const delta = item.start + offset - this.getScrollOffset();
-            if (!approxEqual(delta, 0)) {
-              this.applyScrollAdjustment(delta);
-            }
-          }
-        }
-        if (followOnAppend) {
-          this.scrollToEnd({ behavior: followOnAppend });
-        }
-      }
-    };
-    this._flushIosDeferredIfReady = () => {
-      if (this._iosDeferredAdjustment === 0) return;
-      if (this.isScrolling) return;
-      if (this._iosTouching) return;
-      if (this._iosJustTouchEnded) return;
-      const cur = this.getScrollOffset();
-      const max = this.getMaxScrollOffset();
-      if (cur < 0 || cur > max) return;
-      const delta = this._iosDeferredAdjustment;
-      this._iosDeferredAdjustment = 0;
-      this._scrollToOffset(cur, {
-        adjustments: this.scrollAdjustments += delta,
-        behavior: void 0
-      });
-    };
-    this.rafId = null;
-    this.getSize = () => {
-      if (!this.options.enabled) {
-        this.scrollRect = null;
-        return 0;
-      }
-      this.scrollRect = this.scrollRect ?? this.options.initialRect;
-      return this.scrollRect[this.options.horizontal ? "width" : "height"];
-    };
-    this.getScrollOffset = () => {
-      if (!this.options.enabled) {
-        this.scrollOffset = null;
-        return 0;
-      }
-      this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
-      return this.scrollOffset;
-    };
-    this.getFurthestMeasurement = (measurements, index) => {
-      const furthestMeasurementsFound = /* @__PURE__ */ new Map();
-      const furthestMeasurements = /* @__PURE__ */ new Map();
-      for (let m = index - 1; m >= 0; m--) {
-        const measurement = measurements[m];
-        if (furthestMeasurementsFound.has(measurement.lane)) {
-          continue;
-        }
-        const previousFurthestMeasurement = furthestMeasurements.get(
-          measurement.lane
-        );
-        if (previousFurthestMeasurement == null || measurement.end > previousFurthestMeasurement.end) {
-          furthestMeasurements.set(measurement.lane, measurement);
-        } else if (measurement.end < previousFurthestMeasurement.end) {
-          furthestMeasurementsFound.set(measurement.lane, true);
-        }
-        if (furthestMeasurementsFound.size === this.options.lanes) {
-          break;
-        }
-      }
-      return furthestMeasurements.size === this.options.lanes ? Array.from(furthestMeasurements.values()).sort((a, b) => {
-        if (a.end === b.end) {
-          return a.index - b.index;
-        }
-        return a.end - b.end;
-      })[0] : void 0;
-    };
-    this.getMeasurementOptions = memo(
-      () => [
-        this.options.count,
-        this.options.paddingStart,
-        this.options.scrollMargin,
-        this.options.getItemKey,
-        this.options.enabled,
-        this.options.lanes,
-        this.options.laneAssignmentMode
-      ],
-      (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode) => {
-        const lanesChanged = this.prevLanes !== void 0 && this.prevLanes !== lanes;
-        if (lanesChanged) {
-          this.lanesChangedFlag = true;
-        }
-        this.prevLanes = lanes;
-        this.pendingMin = null;
-        return {
-          count,
-          paddingStart,
-          scrollMargin,
-          getItemKey,
-          enabled,
-          lanes,
-          laneAssignmentMode
-        };
-      },
-      {
-        key: false
-      }
-    );
-    this.getMeasurements = memo(
-      () => [this.getMeasurementOptions(), this.itemSizeCacheVersion],
-      ({
-        count,
-        paddingStart,
-        scrollMargin,
-        getItemKey,
-        enabled,
-        lanes,
-        laneAssignmentMode
-      }, _itemSizeCacheVersion) => {
-        const itemSizeCache = this.itemSizeCache;
-        if (!enabled) {
-          this.measurementsCache = [];
-          this.itemSizeCache.clear();
-          this.laneAssignments.clear();
-          return [];
-        }
-        if (this.laneAssignments.size > count) {
-          for (const index of this.laneAssignments.keys()) {
-            if (index >= count) {
-              this.laneAssignments.delete(index);
-            }
-          }
-        }
-        if (this.lanesChangedFlag) {
-          this.lanesChangedFlag = false;
-          this.lanesSettling = true;
-          this.measurementsCache = [];
-          this.itemSizeCache.clear();
-          this.laneAssignments.clear();
-          this.pendingMin = null;
-        }
-        if (this.measurementsCache.length === 0 && !this.lanesSettling) {
-          this.measurementsCache = this.options.initialMeasurementsCache;
-          this.measurementsCache.forEach((item) => {
-            this.itemSizeCache.set(item.key, item.size);
-          });
-        }
-        const min = this.lanesSettling ? 0 : this.pendingMin ?? 0;
-        this.pendingMin = null;
-        if (this.lanesSettling && this.measurementsCache.length === count) {
-          this.lanesSettling = false;
-        }
-        if (lanes === 1) {
-          const gap = this.options.gap;
-          const need = count * 2;
-          let flat = this._flatMeasurements;
-          if (!flat || flat.length < need) {
-            const next = new Float64Array(need);
-            if (flat && min > 0) next.set(flat.subarray(0, min * 2));
-            flat = next;
-            this._flatMeasurements = flat;
-          }
-          let runningStart;
-          if (min === 0) {
-            runningStart = paddingStart + scrollMargin;
-          } else {
-            const prevIdx = min - 1;
-            runningStart = flat[prevIdx * 2] + flat[prevIdx * 2 + 1] + gap;
-          }
-          for (let i = min; i < count; i++) {
-            const key = getItemKey(i);
-            const measuredSize = itemSizeCache.get(key);
-            const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
-            flat[i * 2] = runningStart;
-            flat[i * 2 + 1] = size;
-            runningStart += size + gap;
-          }
-          const view = createLazyMeasurementsView(count, flat, getItemKey);
-          this.measurementsCache = view;
-          return view;
-        }
-        const measurements = this.measurementsCache.slice(0, min);
-        const laneLastIndex = new Array(lanes).fill(
-          void 0
-        );
-        for (let m = 0; m < min; m++) {
-          const item = measurements[m];
-          if (item) {
-            laneLastIndex[item.lane] = m;
-          }
-        }
-        for (let i = min; i < count; i++) {
-          const key = getItemKey(i);
-          const cachedLane = this.laneAssignments.get(i);
-          let lane;
-          let start;
-          const shouldCacheLane = laneAssignmentMode === "estimate" || itemSizeCache.has(key);
-          if (cachedLane !== void 0 && this.options.lanes > 1) {
-            lane = cachedLane;
-            const prevIndex = laneLastIndex[lane];
-            const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
-            start = prevInLane ? prevInLane.end + this.options.gap : paddingStart + scrollMargin;
-          } else {
-            const furthestMeasurement = this.options.lanes === 1 ? measurements[i - 1] : this.getFurthestMeasurement(measurements, i);
-            start = furthestMeasurement ? furthestMeasurement.end + this.options.gap : paddingStart + scrollMargin;
-            lane = furthestMeasurement ? furthestMeasurement.lane : i % this.options.lanes;
-            if (this.options.lanes > 1 && shouldCacheLane) {
-              this.laneAssignments.set(i, lane);
-            }
-          }
-          const measuredSize = itemSizeCache.get(key);
-          const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
-          const end = start + size;
-          measurements[i] = {
-            index: i,
-            start,
-            size,
-            end,
-            key,
-            lane
-          };
-          laneLastIndex[lane] = i;
-        }
-        this.measurementsCache = measurements;
-        return measurements;
-      },
-      {
-        key: false,
-        debug: () => this.options.debug
-      }
-    );
-    this.calculateRange = memo(
-      () => [
-        this.getMeasurements(),
-        this.getSize(),
-        this.getScrollOffset(),
-        this.options.lanes
-      ],
-      (measurements, outerSize, scrollOffset, lanes) => {
-        return this.range = measurements.length > 0 && outerSize > 0 ? calculateRange({
-          measurements,
-          outerSize,
-          scrollOffset,
-          lanes,
-          // Pass the typed array so binary search + forward-walk can
-          // read start/end directly from Float64Array, skipping the
-          // Proxy traps that materialize a full VirtualItem per probe.
-          flat: lanes === 1 && this._flatMeasurements != null ? this._flatMeasurements : null
-        }) : null;
-      },
-      {
-        key: false,
-        debug: () => this.options.debug
-      }
-    );
-    this.getVirtualIndexes = memo(
-      () => {
-        let startIndex = null;
-        let endIndex = null;
-        const range = this.calculateRange();
-        if (range) {
-          startIndex = range.startIndex;
-          endIndex = range.endIndex;
-        }
-        this.maybeNotify.updateDeps([this.isScrolling, startIndex, endIndex]);
-        return [
-          this.options.rangeExtractor,
-          this.options.overscan,
-          this.options.count,
-          startIndex,
-          endIndex
-        ];
-      },
-      (rangeExtractor, overscan, count, startIndex, endIndex) => {
-        return startIndex === null || endIndex === null ? [] : rangeExtractor({
-          startIndex,
-          endIndex,
-          overscan,
-          count
-        });
-      },
-      {
-        key: false,
-        debug: () => this.options.debug
-      }
-    );
-    this.indexFromElement = (node) => {
-      const attributeName = this.options.indexAttribute;
-      const indexStr = node.getAttribute(attributeName);
-      if (!indexStr) {
-        console.warn(
-          `Missing attribute name '${attributeName}={index}' on measured element.`
-        );
-        return -1;
-      }
-      return parseInt(indexStr, 10);
-    };
-    this.shouldMeasureDuringScroll = (index) => {
-      var _a;
-      if (!this.scrollState || this.scrollState.behavior !== "smooth") {
-        return true;
-      }
-      const scrollIndex = this.scrollState.index ?? ((_a = this.getVirtualItemForOffset(this.scrollState.lastTargetOffset)) == null ? void 0 : _a.index);
-      if (scrollIndex !== void 0 && this.range) {
-        const bufferSize = Math.max(
-          this.options.overscan,
-          Math.ceil((this.range.endIndex - this.range.startIndex) / 2)
-        );
-        const minIndex = Math.max(0, scrollIndex - bufferSize);
-        const maxIndex = Math.min(
-          this.options.count - 1,
-          scrollIndex + bufferSize
-        );
-        return index >= minIndex && index <= maxIndex;
-      }
-      return true;
-    };
-    this.measureElement = (node) => {
-      if (!node) {
-        this.elementsCache.forEach((cached, key2) => {
-          if (!cached.isConnected) {
-            this.observer.unobserve(cached);
-            this.elementsCache.delete(key2);
-          }
-        });
-        return;
-      }
-      const index = this.indexFromElement(node);
-      const key = this.options.getItemKey(index);
-      const prevNode = this.elementsCache.get(key);
-      if (prevNode !== node) {
-        if (prevNode) {
-          this.observer.unobserve(prevNode);
-        }
-        this.observer.observe(node);
-        this.elementsCache.set(key, node);
-      }
-      if ((!this.isScrolling || this.scrollState) && this.shouldMeasureDuringScroll(index)) {
-        this.resizeItem(index, this.options.measureElement(node, void 0, this));
-      }
-    };
-    this.resizeItem = (index, size) => {
-      var _a, _b;
-      if (index < 0 || index >= this.options.count) return;
-      let cachedSize;
-      let itemStart;
-      let key;
-      const flat = this._flatMeasurements;
-      if (this.options.lanes === 1 && flat !== null) {
-        key = this.options.getItemKey(index);
-        itemStart = flat[index * 2];
-        cachedSize = flat[index * 2 + 1];
-      } else {
-        const item = this.measurementsCache[index];
-        if (!item) return;
-        key = item.key;
-        itemStart = item.start;
-        cachedSize = item.size;
-      }
-      const itemSize = this.itemSizeCache.get(key) ?? cachedSize;
-      const delta = size - itemSize;
-      if (delta !== 0) {
-        const wasAtEnd = this.options.anchorTo === "end" && ((_a = this.scrollState) == null ? void 0 : _a.behavior) !== "smooth" && this.getVirtualDistanceFromEnd() <= this.options.scrollEndThreshold;
-        const prevTotalSize = wasAtEnd ? this.getTotalSize() : 0;
-        const shouldAdjustScroll = ((_b = this.scrollState) == null ? void 0 : _b.behavior) !== "smooth" && (this.shouldAdjustScrollPositionOnItemSizeChange !== void 0 ? this.shouldAdjustScrollPositionOnItemSizeChange(
-          // The callback expects a VirtualItem; build one lazily only
-          // when the consumer actually supplied a custom predicate.
-          this.measurementsCache[index] ?? {
-            index,
-            key,
-            start: itemStart,
-            size: cachedSize,
-            end: itemStart + cachedSize,
-            lane: 0
-          },
-          delta,
-          this
-        ) : (
-          // Default: adjust scrollTop only when the resize is an above-
-          // viewport item AND we're not actively scrolling backward.
-          // Adjusting during backward scroll fights the user's scroll
-          // direction and produces the "items jump while scrolling up"
-          // jank reported across many issues. Users who want the old
-          // behavior can pass shouldAdjustScrollPositionOnItemSizeChange.
-          itemStart < this.getScrollOffset() + this.scrollAdjustments && this.scrollDirection !== "backward"
-        ));
-        if (this.pendingMin === null || index < this.pendingMin) {
-          this.pendingMin = index;
-        }
-        this.itemSizeCache.set(key, size);
-        this.itemSizeCacheVersion++;
-        if (wasAtEnd) {
-          this.applyScrollAdjustment(this.getTotalSize() - prevTotalSize);
-        } else if (shouldAdjustScroll) {
-          this.applyScrollAdjustment(delta);
-        }
-        this.notify(false);
-      }
-    };
-    this.getVirtualItems = memo(
-      () => [this.getVirtualIndexes(), this.getMeasurements()],
-      (indexes, measurements) => {
-        const virtualItems = [];
-        for (let k = 0, len = indexes.length; k < len; k++) {
-          const i = indexes[k];
-          const measurement = measurements[i];
-          virtualItems.push(measurement);
-        }
-        return virtualItems;
-      },
-      {
-        key: false,
-        debug: () => this.options.debug
-      }
-    );
-    this.getVirtualItemForOffset = (offset) => {
-      const measurements = this.getMeasurements();
-      if (measurements.length === 0) {
-        return void 0;
-      }
-      const flat = this._flatMeasurements;
-      const useFlat = this.options.lanes === 1 && flat != null;
-      const idx = findNearestBinarySearch(
-        0,
-        measurements.length - 1,
-        useFlat ? (i) => flat[i * 2] : (i) => notUndefined(measurements[i]).start,
-        offset
-      );
-      return notUndefined(measurements[idx]);
-    };
-    this.getMaxScrollOffset = () => {
-      if (!this.scrollElement) return 0;
-      if ("scrollHeight" in this.scrollElement) {
-        return this.options.horizontal ? this.scrollElement.scrollWidth - this.scrollElement.clientWidth : this.scrollElement.scrollHeight - this.scrollElement.clientHeight;
-      } else {
-        const doc = this.scrollElement.document.documentElement;
-        return this.options.horizontal ? doc.scrollWidth - this.scrollElement.innerWidth : doc.scrollHeight - this.scrollElement.innerHeight;
-      }
-    };
-    this.getVirtualDistanceFromEnd = () => {
-      return Math.max(
-        this.getTotalSize() - this.getSize() - this.getScrollOffset(),
-        0
-      );
-    };
-    this.getDistanceFromEnd = () => {
-      return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
-    };
-    this.isAtEnd = (threshold = this.options.scrollEndThreshold) => {
-      return this.getDistanceFromEnd() <= threshold;
-    };
-    this.getOffsetForAlignment = (toOffset, align, itemSize = 0) => {
-      if (!this.scrollElement) return 0;
-      const size = this.getSize();
-      const scrollOffset = this.getScrollOffset();
-      if (align === "auto") {
-        align = toOffset >= scrollOffset + size ? "end" : "start";
-      }
-      if (align === "center") {
-        toOffset += (itemSize - size) / 2;
-      } else if (align === "end") {
-        toOffset -= size;
-      }
-      const maxOffset = this.getMaxScrollOffset();
-      return Math.max(Math.min(maxOffset, toOffset), 0);
-    };
-    this.getOffsetForIndex = (index, align = "auto") => {
-      index = Math.max(0, Math.min(index, this.options.count - 1));
-      const size = this.getSize();
-      const scrollOffset = this.getScrollOffset();
-      const item = this.measurementsCache[index];
-      if (!item) return;
-      if (align === "auto") {
-        if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) {
-          align = "end";
-        } else if (item.start <= scrollOffset + this.options.scrollPaddingStart) {
-          align = "start";
-        } else {
-          return [scrollOffset, align];
-        }
-      }
-      if (align === "end" && index === this.options.count - 1) {
-        return [this.getMaxScrollOffset(), align];
-      }
-      const toOffset = align === "end" ? item.end + this.options.scrollPaddingEnd : item.start - this.options.scrollPaddingStart;
-      return [
-        this.getOffsetForAlignment(toOffset, align, item.size),
-        align
-      ];
-    };
-    this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
-      const offset = this.getOffsetForAlignment(toOffset, align);
-      const now = this.now();
-      this.scrollState = {
-        index: null,
-        align,
-        behavior,
-        startedAt: now,
-        lastTargetOffset: offset,
-        stableFrames: 0
-      };
-      this._scrollToOffset(offset, { adjustments: void 0, behavior });
-      this.scheduleScrollReconcile();
-    };
-    this.scrollToIndex = (index, {
-      align: initialAlign = "auto",
-      behavior = "auto"
-    } = {}) => {
-      index = Math.max(0, Math.min(index, this.options.count - 1));
-      const offsetInfo = this.getOffsetForIndex(index, initialAlign);
-      if (!offsetInfo) {
-        return;
-      }
-      const [offset, align] = offsetInfo;
-      const now = this.now();
-      this.scrollState = {
-        index,
-        align,
-        behavior,
-        startedAt: now,
-        lastTargetOffset: offset,
-        stableFrames: 0
-      };
-      this._scrollToOffset(offset, { adjustments: void 0, behavior });
-      this.scheduleScrollReconcile();
-    };
-    this.scrollBy = (delta, { behavior = "auto" } = {}) => {
-      const offset = this.getScrollOffset() + delta;
-      const now = this.now();
-      this.scrollState = {
-        index: null,
-        align: "start",
-        behavior,
-        startedAt: now,
-        lastTargetOffset: offset,
-        stableFrames: 0
-      };
-      this._scrollToOffset(offset, { adjustments: void 0, behavior });
-      this.scheduleScrollReconcile();
-    };
-    this.scrollToEnd = ({ behavior = "auto" } = {}) => {
-      if (this.options.count > 0) {
-        this.scrollToIndex(this.options.count - 1, {
-          align: "end",
-          behavior
-        });
-        return;
-      }
-      this.scrollToOffset(Math.max(this.getTotalSize() - this.getSize(), 0), {
-        behavior
-      });
-    };
-    this.getTotalSize = () => {
-      var _a;
-      const measurements = this.getMeasurements();
-      let end;
-      if (measurements.length === 0) {
-        end = this.options.paddingStart;
-      } else if (this.options.lanes === 1) {
-        const lastIdx = measurements.length - 1;
-        const flat = this._flatMeasurements;
-        if (flat != null) {
-          end = flat[lastIdx * 2] + flat[lastIdx * 2 + 1];
-        } else {
-          end = ((_a = measurements[lastIdx]) == null ? void 0 : _a.end) ?? 0;
-        }
-      } else {
-        const endByLane = Array(this.options.lanes).fill(null);
-        let endIndex = measurements.length - 1;
-        while (endIndex >= 0 && endByLane.some((val) => val === null)) {
-          const item = measurements[endIndex];
-          if (endByLane[item.lane] === null) {
-            endByLane[item.lane] = item.end;
-          }
-          endIndex--;
-        }
-        end = Math.max(...endByLane.filter((val) => val !== null));
-      }
-      return Math.max(
-        end - this.options.scrollMargin + this.options.paddingEnd,
-        0
-      );
-    };
-    this.takeSnapshot = () => {
-      const snapshot = [];
-      if (this.itemSizeCache.size === 0) return snapshot;
-      const m = this.getMeasurements();
-      for (const item of m) {
-        if (item && this.itemSizeCache.has(item.key)) {
-          snapshot.push({
-            index: item.index,
-            key: item.key,
-            start: item.start,
-            size: item.size,
-            end: item.end,
-            lane: item.lane
-          });
-        }
-      }
-      return snapshot;
-    };
-    this._scrollToOffset = (offset, {
-      adjustments,
-      behavior
-    }) => {
-      this._intendedScrollOffset = offset + (adjustments ?? 0);
-      this.options.scrollToFn(offset, { behavior, adjustments }, this);
-    };
-    this.measure = () => {
-      this.pendingMin = null;
-      this.itemSizeCache.clear();
-      this.laneAssignments.clear();
-      this.itemSizeCacheVersion++;
-      this.notify(false);
-    };
-    this.setOptions(opts);
-  }
-  applyScrollAdjustment(delta, behavior) {
-    if (delta === 0) return;
-    if (false) {
-      console.info("correction", delta);
-    }
-    if (isIOSWebKit() && (this.isScrolling || this._iosTouching || this._iosJustTouchEnded)) {
-      this._iosDeferredAdjustment += delta;
-    } else {
-      this._scrollToOffset(this.getScrollOffset(), {
-        adjustments: this.scrollAdjustments += delta,
-        behavior
-      });
-    }
-  }
-  scheduleScrollReconcile() {
-    if (!this.targetWindow) {
-      this.scrollState = null;
-      return;
-    }
-    if (this.rafId != null) return;
-    this.rafId = this.targetWindow.requestAnimationFrame(() => {
-      this.rafId = null;
-      this.reconcileScroll();
-    });
-  }
-  reconcileScroll() {
-    if (!this.scrollState) return;
-    const el = this.scrollElement;
-    if (!el) return;
-    const MAX_RECONCILE_MS = 5e3;
-    if (this.now() - this.scrollState.startedAt > MAX_RECONCILE_MS) {
-      this.scrollState = null;
-      return;
-    }
-    const offsetInfo = this.scrollState.index != null ? this.getOffsetForIndex(this.scrollState.index, this.scrollState.align) : void 0;
-    const targetOffset = offsetInfo ? offsetInfo[0] : this.scrollState.lastTargetOffset;
-    const STABLE_FRAMES = 1;
-    const targetChanged = targetOffset !== this.scrollState.lastTargetOffset;
-    if (!targetChanged && approxEqual(targetOffset, this.getScrollOffset())) {
-      this.scrollState.stableFrames++;
-      if (this.scrollState.stableFrames >= STABLE_FRAMES) {
-        if (this.getScrollOffset() !== targetOffset) {
-          this._scrollToOffset(targetOffset, {
-            adjustments: void 0,
-            behavior: "auto"
-          });
-        }
-        this.scrollState = null;
-        return;
-      }
-    } else {
-      this.scrollState.stableFrames = 0;
-      if (targetChanged) {
-        const viewport = this.getSize() || 600;
-        const distance = Math.abs(targetOffset - this.getScrollOffset());
-        const keepSmooth = this.scrollState.behavior === "smooth" && distance > viewport;
-        this.scrollState.lastTargetOffset = targetOffset;
-        if (!keepSmooth) {
-          this.scrollState.behavior = "auto";
-        }
-        this._scrollToOffset(targetOffset, {
-          adjustments: void 0,
-          behavior: keepSmooth ? "smooth" : "auto"
-        });
-      }
-    }
-    this.scheduleScrollReconcile();
-  }
-};
-var findNearestBinarySearch = (low, high, getCurrentValue, value) => {
-  while (low <= high) {
-    const middle = (low + high) / 2 | 0;
-    const currentValue = getCurrentValue(middle);
-    if (currentValue < value) {
-      low = middle + 1;
-    } else if (currentValue > value) {
-      high = middle - 1;
-    } else {
-      return middle;
-    }
-  }
-  if (low > 0) {
-    return low - 1;
-  } else {
-    return 0;
-  }
-};
-function calculateRange({
-  measurements,
-  outerSize,
-  scrollOffset,
-  lanes,
-  flat
-}) {
-  const lastIndex = measurements.length - 1;
-  const getStart = flat ? (index) => flat[index * 2] : (index) => measurements[index].start;
-  const getEnd = flat ? (index) => flat[index * 2] + flat[index * 2 + 1] : (index) => measurements[index].end;
-  if (measurements.length <= lanes) {
-    return {
-      startIndex: 0,
-      endIndex: lastIndex
-    };
-  }
-  let startIndex = findNearestBinarySearch(0, lastIndex, getStart, scrollOffset);
-  let endIndex = startIndex;
-  if (lanes === 1) {
-    while (endIndex < lastIndex && getEnd(endIndex) < scrollOffset + outerSize) {
-      endIndex++;
-    }
-  } else if (lanes > 1) {
-    const endPerLane = Array(lanes).fill(0);
-    while (endIndex < lastIndex && endPerLane.some((pos) => pos < scrollOffset + outerSize)) {
-      const item = measurements[endIndex];
-      endPerLane[item.lane] = item.end;
-      endIndex++;
-    }
-    const startPerLane = Array(lanes).fill(scrollOffset + outerSize);
-    while (startIndex >= 0 && startPerLane.some((pos) => pos >= scrollOffset)) {
-      const item = measurements[startIndex];
-      startPerLane[item.lane] = item.start;
-      startIndex--;
-    }
-    startIndex = Math.max(0, startIndex - startIndex % lanes);
-    endIndex = Math.min(lastIndex, endIndex + (lanes - 1 - endIndex % lanes));
-  }
-  return { startIndex, endIndex };
-}
-
-// node_modules/@tanstack/react-virtual/dist/esm/index.js
-var useIsomorphicLayoutEffect = typeof document !== "undefined" ? React.useLayoutEffect : React.useEffect;
-function useVirtualizerBase({
-  useFlushSync = true,
-  ...options
-}) {
-  const rerender = React.useReducer((x) => x + 1, 0)[1];
-  const resolvedOptions = {
-    ...options,
-    onChange: (instance2, sync) => {
-      var _a;
-      if (useFlushSync && sync) {
-        (0, import_react_dom.flushSync)(rerender);
-      } else {
-        rerender();
-      }
-      (_a = options.onChange) == null ? void 0 : _a.call(options, instance2, sync);
-    }
-  };
-  const [instance] = React.useState(
-    () => new Virtualizer(resolvedOptions)
-  );
-  instance.setOptions(resolvedOptions);
-  useIsomorphicLayoutEffect(() => {
-    return instance._didMount();
-  }, []);
-  useIsomorphicLayoutEffect(() => {
-    return instance._willUpdate();
-  });
-  return instance;
-}
-function useVirtualizer(options) {
-  return useVirtualizerBase({
-    observeElementRect,
-    observeElementOffset,
-    scrollToFn: elementScroll,
-    ...options
-  });
-}
-
-// src/ui/MarkdownPreview.tsx
-var import_obsidian6 = require("obsidian");
-var import_react3 = __toESM(require_react());
-var import_jsx_runtime = __toESM(require_jsx_runtime());
-function MarkdownPreview({ markdown, sourcePath, plugin }) {
-  const ref = (0, import_react3.useRef)(null);
-  (0, import_react3.useEffect)(() => {
-    const element = ref.current;
-    if (!element) return;
-    element.empty();
-    void import_obsidian6.MarkdownRenderer.render(plugin.app, markdown, element, sourcePath, plugin);
-  }, [markdown, plugin, sourcePath]);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { ref, className: "local-capture-markdown markdown-rendered" });
-}
-
-// src/ui/LocalCaptureApp.tsx
-var import_jsx_runtime2 = __toESM(require_jsx_runtime());
-function LocalCaptureApp({ plugin }) {
-  const [items, setItems] = (0, import_react4.useState)(() => plugin.index.getItems());
-  const [draft, setDraft] = (0, import_react4.useState)("");
-  const [draftType, setDraftType] = (0, import_react4.useState)(plugin.settings.defaultType);
-  const [query, setQuery] = (0, import_react4.useState)("");
-  const [status, setStatus] = (0, import_react4.useState)("active");
-  const [selectedDay, setSelectedDay] = (0, import_react4.useState)();
-  const [selectedIds, setSelectedIds] = (0, import_react4.useState)([]);
-  const [viewMode, setViewMode] = (0, import_react4.useState)("timeline");
-  const [savedQueryName, setSavedQueryName] = (0, import_react4.useState)("");
-  const [savedQueryId, setSavedQueryId] = (0, import_react4.useState)("");
-  const [savedQueries, setSavedQueries] = (0, import_react4.useState)(() => plugin.settings.savedQueries);
-  const [tableSortKey, setTableSortKey] = (0, import_react4.useState)("createdAt");
-  const [tableSortDirection, setTableSortDirection] = (0, import_react4.useState)("desc");
-  const [visibleColumns, setVisibleColumns] = (0, import_react4.useState)(
-    () => /* @__PURE__ */ new Set(["time", "type", "status", "title", "tags"])
-  );
-  (0, import_react4.useEffect)(() => {
-    return plugin.index.subscribe(() => {
-      setItems(plugin.index.getItems());
-    });
-  }, [plugin]);
-  (0, import_react4.useEffect)(() => {
-    plugin.setSelectedCaptureIds(selectedIds);
-  }, [plugin, selectedIds]);
-  (0, import_react4.useEffect)(() => {
-    plugin.setActiveDayKey(selectedDay);
-  }, [plugin, selectedDay]);
-  (0, import_react4.useEffect)(() => {
-    const validIds = new Set(items.map((item) => item.id));
-    setSelectedIds((current) => current.filter((id) => validIds.has(id)));
-  }, [items]);
-  const filteredItems = (0, import_react4.useMemo)(() => {
+  }, [query]);
+  const scopedItems = (0, import_react8.useMemo)(() => {
     const byStatus = status === "all" ? items : items.filter((item) => item.status === status);
-    const byDate = selectedDay ? byStatus.filter((item) => dayKeyFromIso(item.createdAt) === selectedDay) : byStatus;
-    if (!query.trim()) return byDate;
-    const fuse = new Fuse(byDate, {
+    return selectedDay ? byStatus.filter((item) => dayKeyFromIso(item.createdAt) === selectedDay) : byStatus;
+  }, [items, selectedDay, status]);
+  const fuse = (0, import_react8.useMemo)(
+    () => new Fuse(scopedItems, {
       keys: ["title", "bodyMarkdown", "tags", "path", "type"],
       threshold: 0.35,
       ignoreLocation: true
-    });
-    return fuse.search(query.trim()).map((result) => result.item);
-  }, [items, query, selectedDay, status]);
-  const tableItems = (0, import_react4.useMemo)(
-    () => sortTableItems(filteredItems, tableSortKey, tableSortDirection),
-    [filteredItems, tableSortDirection, tableSortKey]
+    }),
+    [scopedItems]
   );
-  const selectedItems = (0, import_react4.useMemo)(
-    () => items.filter((item) => selectedIds.includes(item.id)),
+  const filteredItems = (0, import_react8.useMemo)(() => {
+    const trimmed = debouncedQuery.trim();
+    if (!trimmed) return scopedItems;
+    return fuse.search(trimmed).map((result) => result.item);
+  }, [debouncedQuery, fuse, scopedItems]);
+  return {
+    query,
+    setQuery,
+    status,
+    setStatus,
+    selectedDay,
+    setSelectedDay,
+    filteredItems
+  };
+}
+
+// src/ui/hooks/useCaptureItems.ts
+var import_react9 = __toESM(require_react());
+function useCaptureItems(plugin) {
+  const [items, setItems] = (0, import_react9.useState)(() => plugin.index.getItems());
+  const [isRebuilding, setIsRebuilding] = (0, import_react9.useState)(() => plugin.index.isRebuilding());
+  (0, import_react9.useEffect)(() => {
+    setItems(plugin.index.getItems());
+    setIsRebuilding(plugin.index.isRebuilding());
+    return plugin.index.subscribe(() => {
+      setItems(plugin.index.getItems());
+      setIsRebuilding(plugin.index.isRebuilding());
+    });
+  }, [plugin]);
+  return { items, isRebuilding };
+}
+
+// src/ui/hooks/useSavedQueries.ts
+var import_react10 = __toESM(require_react());
+function useSavedQueries(plugin) {
+  const [savedQueries, setSavedQueries] = (0, import_react10.useState)(() => plugin.settings.savedQueries);
+  const [savedQueryId, setSavedQueryId] = (0, import_react10.useState)("");
+  const [savedQueryName, setSavedQueryName] = (0, import_react10.useState)("");
+  async function save(name, filter) {
+    const saved = await plugin.saveQuery(name, filter);
+    setSavedQueries([...plugin.settings.savedQueries]);
+    setSavedQueryId(saved.id);
+    setSavedQueryName("");
+  }
+  async function remove() {
+    if (!savedQueryId) return;
+    await plugin.deleteQuery(savedQueryId);
+    setSavedQueries([...plugin.settings.savedQueries]);
+    setSavedQueryId("");
+  }
+  return {
+    savedQueries,
+    savedQueryId,
+    setSavedQueryId,
+    savedQueryName,
+    setSavedQueryName,
+    save,
+    remove
+  };
+}
+
+// src/ui/hooks/useSelection.ts
+var import_react11 = __toESM(require_react());
+function useSelection(plugin, items) {
+  const [selectedIds, setSelectedIds] = (0, import_react11.useState)(() => /* @__PURE__ */ new Set());
+  (0, import_react11.useEffect)(() => {
+    plugin.setSelectedCaptureIds([...selectedIds]);
+  }, [plugin, selectedIds]);
+  (0, import_react11.useEffect)(() => {
+    const valid = new Set(items.map((item) => item.id));
+    setSelectedIds((current) => {
+      let changed = false;
+      const next = /* @__PURE__ */ new Set();
+      for (const id of current) {
+        if (valid.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [items]);
+  const has = (0, import_react11.useCallback)((id) => selectedIds.has(id), [selectedIds]);
+  const toggle = (0, import_react11.useCallback)((id) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const clear = (0, import_react11.useCallback)(() => setSelectedIds(/* @__PURE__ */ new Set()), []);
+  const toggleAll = (0, import_react11.useCallback)((visibleIds) => {
+    setSelectedIds((current) => {
+      const allSelected = visibleIds.length > 0 && visibleIds.every((id) => current.has(id));
+      const next = new Set(current);
+      if (allSelected) {
+        for (const id of visibleIds) next.delete(id);
+      } else {
+        for (const id of visibleIds) next.add(id);
+      }
+      return next;
+    });
+  }, []);
+  const selectedItems = (0, import_react11.useMemo)(
+    () => items.filter((item) => selectedIds.has(item.id)),
     [items, selectedIds]
   );
-  const tagCounts = (0, import_react4.useMemo)(() => {
+  return { selectedIds, has, toggle, clear, toggleAll, selectedItems };
+}
+
+// src/ui/hooks/useTableSort.ts
+var import_react12 = __toESM(require_react());
+function useTableSort(filteredItems) {
+  const [sortKey, setSortKey] = (0, import_react12.useState)("createdAt");
+  const [sortDirection, setSortDirection] = (0, import_react12.useState)("desc");
+  const [visibleColumns, setVisibleColumns] = (0, import_react12.useState)(
+    () => /* @__PURE__ */ new Set(["time", "type", "status", "title", "tags"])
+  );
+  const tableItems = (0, import_react12.useMemo)(
+    () => sortTableItems(filteredItems, sortKey, sortDirection),
+    [filteredItems, sortDirection, sortKey]
+  );
+  function onSort(nextKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => current === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(nextKey);
+      setSortDirection("asc");
+    }
+  }
+  function toggleColumn(column) {
+    setVisibleColumns((current) => {
+      const next = new Set(current);
+      if (next.has(column) && next.size > 1) {
+        next.delete(column);
+      } else {
+        next.add(column);
+      }
+      return next;
+    });
+  }
+  return { sortKey, sortDirection, visibleColumns, tableItems, onSort, toggleColumn };
+}
+
+// src/ui/LocalCaptureApp.tsx
+var import_jsx_runtime12 = __toESM(require_jsx_runtime());
+function LocalCaptureApp({ plugin }) {
+  const { items, isRebuilding } = useCaptureItems(plugin);
+  const [draft, setDraft] = (0, import_react13.useState)("");
+  const [draftType, setDraftType] = (0, import_react13.useState)(plugin.settings.defaultType);
+  const [viewMode, setViewMode] = (0, import_react13.useState)("timeline");
+  const [advancedOpen, setAdvancedOpen] = (0, import_react13.useState)(() => plugin.settings.advancedFiltersOpen);
+  const filters = useCaptureFilters(items);
+  const { filteredItems, query, status, selectedDay } = filters;
+  const selection = useSelection(plugin, items);
+  const tableSort = useTableSort(filteredItems);
+  const savedQueriesState = useSavedQueries(plugin);
+  (0, import_react13.useEffect)(() => {
+    plugin.setActiveDayKey(selectedDay);
+  }, [plugin, selectedDay]);
+  const tagCounts = (0, import_react13.useMemo)(() => {
     const counts = /* @__PURE__ */ new Map();
     for (const item of items) {
       if (item.status === "deleted") continue;
@@ -11957,639 +12730,133 @@ function LocalCaptureApp({ plugin }) {
     });
     setDraft("");
   }
-  function onDraftKeyDown(event) {
-    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-      event.preventDefault();
-      void submitDraft();
-    }
+  async function toggleAdvanced() {
+    const next = !advancedOpen;
+    setAdvancedOpen(next);
+    plugin.settings.advancedFiltersOpen = next;
+    await plugin.saveSettings();
   }
-  function toggleSelected(id) {
-    setSelectedIds(
-      (current) => current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id]
-    );
+  function selectVisible() {
+    const visibleIds = (viewMode === "table" ? tableSort.tableItems : filteredItems).map((item) => item.id);
+    selection.toggleAll(visibleIds);
   }
   async function archiveSelected() {
-    await plugin.captureService.archiveMany(selectedItems);
-    setSelectedIds([]);
+    await plugin.captureService.archiveMany(selection.selectedItems);
+    selection.clear();
   }
   async function deleteSelected() {
-    await plugin.captureService.softDeleteMany(selectedItems);
-    setSelectedIds([]);
+    await plugin.captureService.softDeleteMany(selection.selectedItems);
+    selection.clear();
   }
   async function restoreSelected() {
-    await plugin.captureService.restoreMany(selectedItems);
-    setSelectedIds([]);
-  }
-  const summaryDay = selectedDay ?? todayDayKey();
-  async function saveCurrentQuery() {
-    const name = savedQueryName.trim() || buildDefaultQueryName(query, status, selectedDay);
-    const saved = await plugin.saveQuery(name, { query, status, selectedDay });
-    setSavedQueries([...plugin.settings.savedQueries]);
-    setSavedQueryId(saved.id);
-    setSavedQueryName("");
-  }
-  async function deleteCurrentSavedQuery() {
-    if (!savedQueryId) return;
-    await plugin.deleteQuery(savedQueryId);
-    setSavedQueries([...plugin.settings.savedQueries]);
-    setSavedQueryId("");
+    await plugin.captureService.restoreMany(selection.selectedItems);
+    selection.clear();
   }
   function applySavedQuery(id) {
-    setSavedQueryId(id);
-    const saved = savedQueries.find((savedQuery) => savedQuery.id === id);
+    savedQueriesState.setSavedQueryId(id);
+    const saved = savedQueriesState.savedQueries.find((savedQuery) => savedQuery.id === id);
     if (!saved) return;
-    setQuery(saved.query);
-    setStatus(saved.status);
-    setSelectedDay(saved.selectedDay);
+    filters.setQuery(saved.query);
+    filters.setStatus(saved.status);
+    filters.setSelectedDay(saved.selectedDay);
   }
-  function toggleTableColumn(column) {
-    setVisibleColumns((current) => {
-      const next = new Set(current);
-      if (next.has(column) && next.size > 1) {
-        next.delete(column);
-      } else {
-        next.add(column);
+  async function saveCurrentQuery() {
+    const name = savedQueriesState.savedQueryName.trim() || buildDefaultQueryName(query, status, selectedDay);
+    await savedQueriesState.save(name, { query, status, selectedDay });
+  }
+  function clearFilters() {
+    filters.setQuery("");
+    filters.setStatus("active");
+    filters.setSelectedDay(void 0);
+    savedQueriesState.setSavedQueryId("");
+  }
+  const listIsEmpty = filteredItems.length === 0;
+  const hasNoData = items.length === 0;
+  const hasActiveFilter = Boolean(query.trim()) || status !== "active" || Boolean(selectedDay);
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "local-capture-app", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+      Composer,
+      {
+        draft,
+        draftType,
+        onDraftChange: setDraft,
+        onDraftTypeChange: setDraftType,
+        onSubmit: () => void submitDraft()
       }
-      return next;
-    });
-  }
-  function toggleSelectAllVisible() {
-    const visibleIds = (viewMode === "table" ? tableItems : filteredItems).map((item) => item.id);
-    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
-    setSelectedIds((current) => {
-      if (allSelected) {
-        const visible = new Set(visibleIds);
-        return current.filter((id) => !visible.has(id));
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+      FilterBar,
+      {
+        query,
+        onQueryChange: filters.setQuery,
+        status,
+        onStatusChange: filters.setStatus,
+        viewMode,
+        onViewModeChange: setViewMode,
+        onSelectVisible: selectVisible
       }
-      return [.../* @__PURE__ */ new Set([...current, ...visibleIds])];
-    });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-app", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "local-capture-composer", "aria-label": "\u5FEB\u901F\u8BB0\u5F55", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-        "textarea",
-        {
-          className: "local-capture-input",
-          value: draft,
-          placeholder: "\u5199\u4E0B\u8BB0\u5F55\uFF0C\u652F\u6301 Markdown \u548C #\u6807\u7B7E",
-          onChange: (event) => setDraft(event.currentTarget.value),
-          onKeyDown: onDraftKeyDown
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-composer-row", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-segmented", role: "group", "aria-label": "\u8BB0\u5F55\u7C7B\u578B", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-            "button",
-            {
-              type: "button",
-              className: draftType === "note" ? "is-active" : "",
-              onClick: () => setDraftType("note"),
-              children: "\u7B14\u8BB0"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-            "button",
-            {
-              type: "button",
-              className: draftType === "task" ? "is-active" : "",
-              onClick: () => setDraftType("task"),
-              children: "\u4EFB\u52A1"
-            }
-          )
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: "mod-cta local-capture-primary",
-            onClick: () => void submitDraft(),
-            disabled: !draft.trim(),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Save, { size: 15, "aria-hidden": "true" }),
-              "\u4FDD\u5B58"
-            ]
-          }
-        )
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "local-capture-tools", "aria-label": "\u7B5B\u9009", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-search", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Search, { size: 15, "aria-hidden": "true" }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "input",
-          {
-            value: query,
-            placeholder: "\u641C\u7D22\u8BB0\u5F55\u3001\u6807\u7B7E\u6216\u8DEF\u5F84",
-            onChange: (event) => setQuery(event.currentTarget.value)
-          }
-        )
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-status-tabs", role: "tablist", "aria-label": "\u72B6\u6001\u7B5B\u9009", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StatusButton, { label: "\u6D3B\u8DC3", value: "active", status, onChange: setStatus }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StatusButton, { label: "\u5F52\u6863", value: "archived", status, onChange: setStatus }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StatusButton, { label: "\u5220\u9664", value: "deleted", status, onChange: setStatus }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StatusButton, { label: "\u5168\u90E8", value: "all", status, onChange: setStatus })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-view-tabs", role: "tablist", "aria-label": "\u89C6\u56FE\u5207\u6362", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: viewMode === "timeline" ? "is-active" : "",
-            title: "\u65F6\u95F4\u7EBF\u89C6\u56FE",
-            onClick: () => setViewMode("timeline"),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(List, { size: 14, "aria-hidden": "true" }),
-              "\u65F6\u95F4\u7EBF"
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            className: viewMode === "table" ? "is-active" : "",
-            title: "\u8868\u683C\u89C6\u56FE",
-            onClick: () => setViewMode("table"),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Table2, { size: 14, "aria-hidden": "true" }),
-              "\u8868\u683C"
-            ]
-          }
-        )
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-saved-query-row", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("select", { value: savedQueryId, onChange: (event) => applySavedQuery(event.currentTarget.value), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "", children: "\u4FDD\u5B58\u67E5\u8BE2" }),
-          savedQueries.map((savedQuery) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: savedQuery.id, children: savedQuery.name }, savedQuery.id))
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "input",
-          {
-            value: savedQueryName,
-            placeholder: "\u547D\u540D\u5F53\u524D\u7B5B\u9009",
-            onChange: (event) => setSavedQueryName(event.currentTarget.value)
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u4FDD\u5B58\u5F53\u524D\u67E5\u8BE2", onClick: () => void saveCurrentQuery(), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Star, { size: 14, "aria-hidden": "true" }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "button",
-          {
-            type: "button",
-            title: "\u5220\u9664\u9009\u4E2D\u67E5\u8BE2",
-            disabled: !savedQueryId,
-            onClick: () => void deleteCurrentSavedQuery(),
-            children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Trash2, { size: 14, "aria-hidden": "true" })
-          }
-        )
-      ] }),
-      tagCounts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-tag-cloud", "aria-label": "\u6807\u7B7E\u5217\u8868", children: tagCounts.slice(0, 18).map(([tag, count]) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-        "button",
-        {
-          type: "button",
-          title: `\u7B5B\u9009 #${tag}`,
-          style: tagColorStyle(plugin.settings.tagColors[tag]),
-          onClick: () => setQuery(`#${tag}`),
-          children: [
-            "#",
-            tag,
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: count })
-          ]
-        },
-        tag
-      )) }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-        Heatmap,
-        {
-          items,
-          days: plugin.settings.heatmapDays,
-          selectedDay,
-          onSelectDay: (day) => setSelectedDay((current) => current === day ? void 0 : day)
-        }
-      ),
-      selectedDay ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-        "button",
-        {
-          type: "button",
-          className: "local-capture-filter-chip",
-          onClick: () => setSelectedDay(void 0),
-          children: [
-            selectedDay,
-            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(X, { size: 14, "aria-hidden": "true" })
-          ]
-        }
-      ) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-tool-row", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            title: "\u91CD\u5EFA\u7D22\u5F15",
-            onClick: () => void plugin.captureService.rebuildIndex(),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RefreshCcw, { size: 14, "aria-hidden": "true" }),
-              "\u91CD\u5EFA"
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            title: `\u751F\u6210 ${summaryDay} \u6458\u8981`,
-            onClick: () => void plugin.captureService.generateDailySummary(summaryDay),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(CalendarPlus, { size: 14, "aria-hidden": "true" }),
-              "\u6458\u8981"
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            title: `\u53D1\u9001 ${summaryDay} \u6458\u8981\u5230\u6587\u4EF6`,
-            onClick: () => void plugin.pickTargetAndGenerateSummary(summaryDay),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Send, { size: 14, "aria-hidden": "true" }),
-              "\u5230\u6587\u4EF6"
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            title: "\u8FD0\u884C\u8BCA\u65AD",
-            onClick: () => void plugin.runDiagnostics(),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Columns3, { size: 14, "aria-hidden": "true" }),
-              "\u8BCA\u65AD"
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            title: "\u6807\u7B7E\u7BA1\u7406",
-            onClick: () => plugin.openTagManagementModal(),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Tags, { size: 14, "aria-hidden": "true" }),
-              "\u6807\u7B7E"
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-          "button",
-          {
-            type: "button",
-            title: "\u9009\u62E9/\u53D6\u6D88\u5F53\u524D\u7ED3\u679C",
-            onClick: toggleSelectAllVisible,
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SlidersHorizontal, { size: 14, "aria-hidden": "true" }),
-              "\u9009\u62E9\u7ED3\u679C"
-            ]
-          }
-        )
-      ] })
-    ] }),
-    selectedItems.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-batchbar", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
-        selectedItems.length,
-        " \u6761"
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => void plugin.pickTargetAndSend(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Send, { size: 15, "aria-hidden": "true" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u6279\u91CF\u6807\u7B7E", onClick: () => plugin.openBatchTagModal(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Tags, { size: 15, "aria-hidden": "true" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u6279\u91CF\u7C7B\u578B", onClick: () => plugin.openBatchTypeModal(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ListTodo, { size: 15, "aria-hidden": "true" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u5F52\u6863", onClick: () => void archiveSelected(), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Archive, { size: 15, "aria-hidden": "true" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u6062\u590D", onClick: () => void restoreSelected(), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(RotateCcw, { size: 15, "aria-hidden": "true" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u5220\u9664", onClick: () => void deleteSelected(), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Trash2, { size: 15, "aria-hidden": "true" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u53D6\u6D88\u9009\u62E9", onClick: () => setSelectedIds([]), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(X, { size: 15, "aria-hidden": "true" }) })
-    ] }) : null,
-    viewMode === "timeline" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+      AdvancedFilters,
+      {
+        open: advancedOpen,
+        onToggleOpen: () => void toggleAdvanced(),
+        plugin,
+        items,
+        tagCounts,
+        savedQueries: savedQueriesState.savedQueries,
+        savedQueryId: savedQueriesState.savedQueryId,
+        savedQueryName: savedQueriesState.savedQueryName,
+        onApplySavedQuery: applySavedQuery,
+        onSavedQueryNameChange: savedQueriesState.setSavedQueryName,
+        onSaveQuery: () => void saveCurrentQuery(),
+        onDeleteSavedQuery: () => void savedQueriesState.remove(),
+        onSelectTag: (tag) => filters.setQuery(`#${tag}`),
+        selectedDay,
+        onSelectDay: (day) => filters.setSelectedDay(selectedDay === day ? void 0 : day),
+        onClearDay: () => filters.setSelectedDay(void 0)
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+      BatchBar,
+      {
+        plugin,
+        selectedItems: selection.selectedItems,
+        onArchive: () => void archiveSelected(),
+        onRestore: () => void restoreSelected(),
+        onDelete: () => void deleteSelected(),
+        onClear: selection.clear
+      }
+    ),
+    isRebuilding && hasNoData ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(EmptyState, { variant: "loading" }) : listIsEmpty ? hasNoData && !hasActiveFilter ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(EmptyState, { variant: "first-run", captureFolder: plugin.settings.captureFolder }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(EmptyState, { variant: "no-match", onClearFilters: hasActiveFilter ? clearFilters : void 0 }) : viewMode === "timeline" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
       Timeline,
       {
         plugin,
         items: filteredItems,
-        selectedIds,
-        onToggleSelected: toggleSelected
+        isSelected: selection.has,
+        onToggleSelected: selection.toggle
       }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(TableColumnControls, { visibleColumns, onToggle: toggleTableColumn }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+    ) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(TableColumnControls, { visibleColumns: tableSort.visibleColumns, onToggle: tableSort.toggleColumn }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
         CaptureTable,
         {
           plugin,
-          items: tableItems,
-          selectedIds,
-          onToggleSelected: toggleSelected,
-          visibleColumns,
-          sortKey: tableSortKey,
-          sortDirection: tableSortDirection,
-          onSort: (nextKey) => {
-            if (tableSortKey === nextKey) {
-              setTableSortDirection((current) => current === "asc" ? "desc" : "asc");
-            } else {
-              setTableSortKey(nextKey);
-              setTableSortDirection("asc");
-            }
-          }
+          items: tableSort.tableItems,
+          isSelected: selection.has,
+          onToggleSelected: selection.toggle,
+          visibleColumns: tableSort.visibleColumns,
+          sortKey: tableSort.sortKey,
+          sortDirection: tableSort.sortDirection,
+          onSort: tableSort.onSort
         }
       )
     ] })
   ] });
 }
-function StatusButton({ label, value, status, onChange }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", className: status === value ? "is-active" : "", onClick: () => onChange(value), children: label });
-}
-function Heatmap({ items, days, selectedDay, onSelectDay }) {
-  const counts = (0, import_react4.useMemo)(() => {
-    const map = /* @__PURE__ */ new Map();
-    for (const item of items) {
-      if (item.status === "deleted") continue;
-      const day = dayKeyFromIso(item.createdAt);
-      map.set(day, (map.get(day) ?? 0) + 1);
-    }
-    return map;
-  }, [items]);
-  const dayKeys = (0, import_react4.useMemo)(() => recentDayKeys(days), [days]);
-  const max = Math.max(1, ...dayKeys.map((day) => counts.get(day) ?? 0));
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-heatmap", "aria-label": "\u8BB0\u5F55\u70ED\u529B\u56FE", children: dayKeys.map((day) => {
-    const count = counts.get(day) ?? 0;
-    const level = count === 0 ? 0 : Math.ceil(count / max * 4);
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      "button",
-      {
-        type: "button",
-        className: selectedDay === day ? "is-selected" : "",
-        "data-level": level,
-        title: `${day}: ${count} \u6761`,
-        "aria-label": `${day}: ${count} \u6761`,
-        onClick: () => onSelectDay(day)
-      },
-      day
-    );
-  }) });
-}
-function Timeline({ plugin, items, selectedIds, onToggleSelected }) {
-  const parentRef = (0, import_react4.useRef)(null);
-  const virtualizer = useVirtualizer({
-    count: items.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 220,
-    overscan: 8
-  });
-  if (items.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-empty", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FileInput, { size: 28, "aria-hidden": "true" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u6CA1\u6709\u5339\u914D\u7684\u8BB0\u5F55" })
-    ] });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { ref: parentRef, className: "local-capture-timeline", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-    "div",
-    {
-      className: "local-capture-virtual-space",
-      style: {
-        height: `${virtualizer.getTotalSize()}px`
-      },
-      children: virtualizer.getVirtualItems().map((virtualItem) => {
-        const item = items[virtualItem.index];
-        return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "div",
-          {
-            className: "local-capture-virtual-row",
-            "data-index": virtualItem.index,
-            ref: virtualizer.measureElement,
-            style: {
-              transform: `translateY(${virtualItem.start}px)`
-            },
-            children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-              CaptureCard,
-              {
-                plugin,
-                item,
-                selected: selectedIds.includes(item.id),
-                onToggleSelected: () => onToggleSelected(item.id)
-              }
-            )
-          },
-          item.id
-        );
-      })
-    }
-  ) });
-}
-function TableColumnControls({
-  visibleColumns,
-  onToggle
-}) {
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-column-controls", "aria-label": "\u8868\u683C\u5217\u663E\u793A", children: tableColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      "input",
-      {
-        type: "checkbox",
-        checked: visibleColumns.has(column.key),
-        onChange: () => onToggle(column.key)
-      }
-    ),
-    column.label
-  ] }, column.key)) });
-}
-function CaptureTable({
-  plugin,
-  items,
-  selectedIds,
-  onToggleSelected,
-  visibleColumns,
-  sortKey,
-  sortDirection,
-  onSort
-}) {
-  if (items.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-empty", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(FileInput, { size: 28, "aria-hidden": "true" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: "\u6CA1\u6709\u5339\u914D\u7684\u8BB0\u5F55" })
-    ] });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("table", { className: "local-capture-table", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("tr", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { "aria-label": "\u9009\u62E9" }),
-      visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u65F6\u95F4", sortKey: "createdAt", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u7C7B\u578B", sortKey: "type", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u72B6\u6001", sortKey: "status", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u6807\u9898", sortKey: "title", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(SortableHeader, { label: "\u6807\u7B7E", sortKey: "tags", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { "aria-label": "\u64CD\u4F5C" })
-    ] }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("tbody", { children: items.map((item) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("tr", { className: selectedIds.includes(item.id) ? "is-selected" : "", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-        "input",
-        {
-          type: "checkbox",
-          checked: selectedIds.includes(item.id),
-          onChange: () => onToggleSelected(item.id)
-        }
-      ) }),
-      visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: formatDisplayDateTime(item.createdAt) }) : null,
-      visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }) : null,
-      visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: statusText(item.status) }) : null,
-      visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", onClick: () => void plugin.openCaptureFile(item), children: item.title ?? "\u672A\u547D\u540D\u8BB0\u5F55" }) }) : null,
-      visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: item.tags.map((tag) => `#${tag}`).join(" ") }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => void plugin.pickTargetAndSend([item]), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Send, { size: 14, "aria-hidden": "true" }) }) })
-    ] }, item.id)) })
-  ] }) });
-}
-function SortableHeader({
-  label,
-  sortKey,
-  activeKey,
-  direction,
-  onSort
-}) {
-  const suffix = activeKey === sortKey ? direction === "asc" ? " \u2191" : " \u2193" : "";
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("th", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { type: "button", onClick: () => onSort(sortKey), children: [
-    label,
-    suffix
-  ] }) });
-}
-function CaptureCard({ plugin, item, selected, onToggleSelected }) {
-  const [editing, setEditing] = (0, import_react4.useState)(false);
-  const [body, setBody] = (0, import_react4.useState)(item.bodyMarkdown);
-  (0, import_react4.useEffect)(() => {
-    if (!editing) {
-      setBody(item.bodyMarkdown);
-    }
-  }, [editing, item.bodyMarkdown]);
-  async function saveEdit() {
-    await plugin.captureService.updateBody(item, body);
-    setEditing(false);
-  }
-  async function toggleTask() {
-    await plugin.captureService.setTaskStatus(item, item.taskStatus === "done" ? "todo" : "done");
-  }
-  async function restore() {
-    await plugin.captureService.setStatus(item, "active");
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("article", { className: `local-capture-card ${selected ? "is-selected" : ""} status-${item.status}`, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("header", { className: "local-capture-card-header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { className: "local-capture-select", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("input", { type: "checkbox", checked: selected, onChange: onToggleSelected }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", {})
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-card-meta", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("time", { children: formatDisplayDateTime(item.createdAt) }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }),
-        item.status !== "active" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: statusText(item.status) }) : null
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-card-actions", children: [
-        item.type === "task" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          IconButton,
-          {
-            title: item.taskStatus === "done" ? "\u6807\u8BB0\u4E3A\u5F85\u529E" : "\u6807\u8BB0\u4E3A\u5B8C\u6210",
-            onClick: toggleTask,
-            children: item.taskStatus === "done" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(CircleCheck, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Circle, { size: 16 })
-          }
-        ) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          IconButton,
-          {
-            title: item.pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u7F6E\u9876",
-            onClick: () => plugin.captureService.setPinned(item, !item.pinned),
-            children: item.pinned ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(PinOff, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Pin, { size: 16 })
-          }
-        ),
-        editing ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconButton, { title: "\u4FDD\u5B58\u7F16\u8F91", onClick: saveEdit, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Check, { size: 16 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconButton, { title: "\u53D6\u6D88\u7F16\u8F91", onClick: () => setEditing(false), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(X, { size: 16 }) })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconButton, { title: "\u7F16\u8F91", onClick: () => setEditing(true), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Pencil, { size: 16 }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconButton, { title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.pickTargetAndSend([item]), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Send, { size: 16 }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconButton, { title: "\u6253\u5F00\u6E90\u6587\u4EF6", onClick: () => plugin.openCaptureFile(item), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ExternalLink, { size: 16 }) }),
-        item.status === "active" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconButton, { title: "\u5F52\u6863", onClick: () => plugin.captureService.setStatus(item, "archived"), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Archive, { size: 16 }) }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconButton, { title: "\u6062\u590D", onClick: restore, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(ArchiveRestore, { size: 16 }) }),
-        item.status !== "deleted" ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(IconButton, { title: "\u5220\u9664", onClick: () => plugin.captureService.setStatus(item, "deleted"), children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Trash2, { size: 16 }) }) : null
-      ] })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-card-body", children: editing ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      "textarea",
-      {
-        className: "local-capture-edit",
-        value: body,
-        onChange: (event) => setBody(event.currentTarget.value)
-      }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(MarkdownPreview, { markdown: item.bodyMarkdown, sourcePath: item.path, plugin }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("footer", { className: "local-capture-card-footer", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: formatDisplayTime(item.createdAt) }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-tags", children: item.tags.map((tag) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
-        "#",
-        tag
-      ] }, tag)) })
-    ] })
-  ] });
-}
-function IconButton({ title, children, onClick }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-    "button",
-    {
-      type: "button",
-      className: "local-capture-icon-button",
-      title,
-      "aria-label": title,
-      onClick: () => {
-        const result = onClick();
-        if (result instanceof Promise) {
-          result.catch((error) => {
-            console.error(error);
-            new import_obsidian7.Notice("\u64CD\u4F5C\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u63A7\u5236\u53F0");
-          });
-        }
-      },
-      children
-    }
-  );
-}
-function statusText(status) {
-  if (status === "archived") return "\u5F52\u6863";
-  if (status === "deleted") return "\u5220\u9664";
-  return "\u6D3B\u8DC3";
-}
-function buildDefaultQueryName(query, status, selectedDay) {
-  const parts = [
-    selectedDay,
-    status === "all" ? "\u5168\u90E8" : statusText(status),
-    query.trim() ? `"${query.trim()}"` : void 0
-  ].filter(Boolean);
-  return parts.join(" \xB7 ") || "\u5F53\u524D\u7B5B\u9009";
-}
-var tableColumns = [
-  { key: "time", label: "\u65F6\u95F4" },
-  { key: "type", label: "\u7C7B\u578B" },
-  { key: "status", label: "\u72B6\u6001" },
-  { key: "title", label: "\u6807\u9898" },
-  { key: "tags", label: "\u6807\u7B7E" }
-];
-function sortTableItems(items, key, direction) {
-  const multiplier = direction === "asc" ? 1 : -1;
-  return [...items].sort((a, b) => multiplier * compareTableItems(a, b, key));
-}
-function compareTableItems(a, b, key) {
-  if (key === "createdAt") {
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-  }
-  if (key === "tags") {
-    return a.tags.join(" ").localeCompare(b.tags.join(" "));
-  }
-  return String(a[key] ?? "").localeCompare(String(b[key] ?? ""));
-}
-function tagColorStyle(color) {
-  if (!color) return void 0;
-  return {
-    borderColor: color,
-    color
-  };
-}
 
 // src/view.tsx
-var import_jsx_runtime3 = __toESM(require_jsx_runtime());
+var import_jsx_runtime13 = __toESM(require_jsx_runtime());
 var LocalCaptureView = class extends import_obsidian8.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -12605,11 +12872,29 @@ var LocalCaptureView = class extends import_obsidian8.ItemView {
     return "inbox";
   }
   async onOpen() {
+    this.addHeaderActions();
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("local-capture-host");
     this.root = (0, import_client.createRoot)(container);
-    this.root.render(/* @__PURE__ */ (0, import_jsx_runtime3.jsx)(LocalCaptureApp, { plugin: this.plugin }));
+    this.root.render(/* @__PURE__ */ (0, import_jsx_runtime13.jsx)(LocalCaptureApp, { plugin: this.plugin }));
+  }
+  addHeaderActions() {
+    this.addAction("refresh-cw", "\u91CD\u5EFA\u7D22\u5F15", () => {
+      void this.plugin.captureService.rebuildIndex();
+    });
+    this.addAction("calendar-plus", "\u751F\u6210\u5F53\u524D\u65E5\u671F\u6458\u8981", () => {
+      void this.plugin.generateSummaryForActiveDay();
+    });
+    this.addAction("send", "\u53D1\u9001\u5F53\u524D\u65E5\u671F\u6458\u8981\u5230\u6587\u4EF6", () => {
+      void this.plugin.pickTargetAndGenerateSummary();
+    });
+    this.addAction("tags", "\u6807\u7B7E\u7BA1\u7406", () => {
+      this.plugin.openTagManagementModal();
+    });
+    this.addAction("stethoscope", "\u8FD0\u884C\u8BCA\u65AD", () => {
+      void this.plugin.runDiagnostics();
+    });
   }
   async onClose() {
     this.root?.unmount();
@@ -13122,19 +13407,18 @@ lucide-react/dist/esm/Icon.js:
 lucide-react/dist/esm/createLucideIcon.js:
 lucide-react/dist/esm/icons/archive-restore.js:
 lucide-react/dist/esm/icons/archive.js:
-lucide-react/dist/esm/icons/calendar-plus.js:
 lucide-react/dist/esm/icons/check.js:
+lucide-react/dist/esm/icons/chevron-right.js:
 lucide-react/dist/esm/icons/circle-check.js:
 lucide-react/dist/esm/icons/circle.js:
-lucide-react/dist/esm/icons/columns-3.js:
 lucide-react/dist/esm/icons/external-link.js:
 lucide-react/dist/esm/icons/file-input.js:
+lucide-react/dist/esm/icons/inbox.js:
 lucide-react/dist/esm/icons/list-todo.js:
 lucide-react/dist/esm/icons/list.js:
 lucide-react/dist/esm/icons/pencil.js:
 lucide-react/dist/esm/icons/pin-off.js:
 lucide-react/dist/esm/icons/pin.js:
-lucide-react/dist/esm/icons/refresh-ccw.js:
 lucide-react/dist/esm/icons/rotate-ccw.js:
 lucide-react/dist/esm/icons/save.js:
 lucide-react/dist/esm/icons/search.js:

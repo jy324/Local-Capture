@@ -13,7 +13,7 @@ import {
 } from "../types";
 import { buildCapturePath, dayKeyFromIso } from "../utils/dates";
 import { extractInlineTags, mergeTags, normalizeTag, replaceInlineTag, uniqueTags } from "../utils/tags";
-import { parseCaptureFile, serializeCaptureFile } from "../utils/frontmatter";
+import { parseCaptureFile, replaceBody, serializeCaptureFile } from "../utils/frontmatter";
 import { formatCaptureForAppend, formatDailySummaryBlock, upsertDailySummaryBlock } from "../utils/markdown";
 
 export class CaptureService {
@@ -65,14 +65,19 @@ export class CaptureService {
     const file = this.requireFile(capture.path);
     if (!file) return;
 
-    const updated: CaptureItem = {
-      ...capture,
-      bodyMarkdown: bodyMarkdown.trimEnd(),
-      updatedAt: new Date().toISOString(),
-      tags: mergeTags(capture.tags, extractInlineTags(bodyMarkdown))
-    };
+    const body = bodyMarkdown.trimEnd();
+    const tags = mergeTags(capture.tags, extractInlineTags(bodyMarkdown));
 
-    await this.app.vault.process(file, () => serializeCaptureFile(updated));
+    // Replace only the body, preserving the original frontmatter block verbatim
+    // (including any user-authored keys Local Capture does not model).
+    await this.app.vault.process(file, (raw) => replaceBody(raw, body));
+    // Persist frontmatter changes through processFrontMatter so unknown keys
+    // survive: only touch the keys we own.
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      const fm = frontmatter as Record<string, unknown>;
+      fm.tags = tags;
+      fm.updated = new Date().toISOString();
+    });
     await this.index.updateFile(file);
   }
 
@@ -278,13 +283,31 @@ export class CaptureService {
     const file = this.requireFile(capture.path);
     if (!file) return;
 
-    const updated: CaptureItem = {
-      ...capture,
-      ...patch,
-      updatedAt: new Date().toISOString()
-    };
-    updated.tags = uniqueTags(updated.tags);
-    await this.app.vault.process(file, () => serializeCaptureFile(updated));
+    // Replace only the body when it changes, preserving the original
+    // frontmatter block (and any user-authored keys we don't model).
+    if (patch.bodyMarkdown !== undefined) {
+      await this.app.vault.process(file, (raw) => replaceBody(raw, patch.bodyMarkdown!.trimEnd()));
+    }
+
+    // Persist modelled frontmatter keys through processFrontMatter so unknown
+    // keys survive.
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      const fm = frontmatter as Record<string, unknown>;
+      if (patch.tags !== undefined) fm.tags = uniqueTags(patch.tags);
+      if (patch.type !== undefined) {
+        fm.type = patch.type;
+        if (patch.type === "task") {
+          fm.task_status = patch.taskStatus ?? (fm.task_status === "done" ? "done" : "todo");
+        } else {
+          delete fm.task_status;
+        }
+      } else if (patch.taskStatus !== undefined) {
+        fm.task_status = patch.taskStatus;
+      }
+      if (patch.status !== undefined) fm.status = patch.status;
+      if (patch.pinned !== undefined) fm.pinned = patch.pinned;
+      fm.updated = new Date().toISOString();
+    });
     await this.index.updateFile(file);
   }
 

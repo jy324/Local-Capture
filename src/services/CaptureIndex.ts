@@ -7,6 +7,7 @@ export class CaptureIndex {
   private readonly itemsByPath = new Map<string, CaptureItem>();
   private readonly listeners = new Set<CaptureIndexListener>();
   private rebuilding = false;
+  private sortedCache: CaptureItem[] | null = null;
 
   constructor(
     private readonly app: App,
@@ -18,8 +19,15 @@ export class CaptureIndex {
     return () => this.listeners.delete(listener);
   }
 
+  isRebuilding(): boolean {
+    return this.rebuilding;
+  }
+
   getItems(): CaptureItem[] {
-    return [...this.itemsByPath.values()].sort(sortCaptures);
+    if (!this.sortedCache) {
+      this.sortedCache = [...this.itemsByPath.values()].sort(sortCaptures);
+    }
+    return this.sortedCache;
   }
 
   getById(id: string): CaptureItem | undefined {
@@ -100,6 +108,7 @@ export class CaptureIndex {
   }
 
   private notify(): void {
+    this.sortedCache = null;
     for (const listener of this.listeners) {
       listener();
     }
