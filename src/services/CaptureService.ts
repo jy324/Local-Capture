@@ -1,4 +1,4 @@
-import { App, Notice, TFile, normalizePath } from "obsidian";
+import { App, Notice, TFile, TFolder, normalizePath } from "obsidian";
 import { LocalCaptureSettings } from "../settings";
 import { CaptureIndex } from "./CaptureIndex";
 import {
@@ -347,7 +347,7 @@ export class CaptureService {
     let id = firstId;
     let path = buildCapturePath(folder, createdAt, id);
 
-    while (await this.app.vault.adapter.exists(path)) {
+    while (this.app.vault.getAbstractFileByPath(path)) {
       id = createShortId();
       path = buildCapturePath(folder, createdAt, id);
     }
@@ -363,8 +363,11 @@ export class CaptureService {
         ? normalizePath(settings.dailyNoteFolder ? `${settings.dailyNoteFolder}/${fileName}` : fileName)
         : normalizePath(`${settings.dailySummaryFolder}/${fileName}`);
 
-    const existing = this.getFile(path);
-    if (existing) return existing;
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) return existing;
+    if (existing) {
+      throw new Error(`摘要目标路径已存在且不是文件：${path}`);
+    }
 
     await this.ensureParentFolder(path);
     await this.app.vault.create(path, "");
@@ -379,14 +382,16 @@ export class CaptureService {
 
     try {
       await this.ensureParentFolder(probePath);
-      await this.app.vault.adapter.write(probePath, "Local Capture diagnostic probe\n");
-      await this.app.vault.adapter.remove(probePath);
+      const probeFile = await this.app.vault.create(probePath, "Local Capture diagnostic probe\n");
+      // Hard delete is limited to this transient probe; capture files still use soft delete.
+      await this.app.vault.delete(probeFile);
       return true;
     } catch (error) {
       console.error("Local Capture diagnostics failed", error);
       try {
-        if (await this.app.vault.adapter.exists(probePath)) {
-          await this.app.vault.adapter.remove(probePath);
+        const probeFile = this.getFile(probePath);
+        if (probeFile) {
+          await this.app.vault.delete(probeFile);
         }
       } catch (cleanupError) {
         console.error("Local Capture diagnostics cleanup failed", cleanupError);
@@ -404,8 +409,21 @@ export class CaptureService {
     let current = "";
     for (const segment of segments) {
       current = current ? `${current}/${segment}` : segment;
-      if (!(await this.app.vault.adapter.exists(current))) {
-        await this.app.vault.adapter.mkdir(current);
+      const existing = this.app.vault.getAbstractFileByPath(current);
+      if (existing instanceof TFolder) {
+        continue;
+      }
+      if (existing) {
+        throw new Error(`无法创建目录，路径已存在且不是目录：${current}`);
+      }
+
+      try {
+        await this.app.vault.createFolder(current);
+      } catch (error) {
+        const createdByAnotherOperation = this.app.vault.getAbstractFileByPath(current);
+        if (!(createdByAnotherOperation instanceof TFolder)) {
+          throw error;
+        }
       }
     }
   }

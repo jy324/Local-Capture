@@ -20,6 +20,7 @@ import { todayDayKey } from "./utils/dates";
 import { BatchTagModal } from "./modals/BatchTagModal";
 import { BatchTypeModal } from "./modals/BatchTypeModal";
 import { TagManagementModal } from "./modals/TagManagementModal";
+import { reportActionError, runGuardedAction } from "./actionErrors";
 
 export default class LocalCapturePlugin extends Plugin {
   settings!: LocalCaptureSettings;
@@ -43,7 +44,7 @@ export default class LocalCapturePlugin extends Plugin {
     );
 
     this.addRibbonIcon("inbox", "Local Capture", () => {
-      void this.activateView();
+      this.runAction("打开 Local Capture", () => this.activateView());
     });
 
     this.addSettingTab(new LocalCaptureSettingTab(this.app, this));
@@ -122,7 +123,7 @@ export default class LocalCapturePlugin extends Plugin {
     new TargetFileSuggestModal(this, async (target) => {
       await this.captureService.appendToFile(captures, target);
       this.selectedCaptureIds.clear();
-    }).open();
+    }, "发送选中记录到文件").open();
   }
 
   openBatchTagModal(captures: CaptureItem[]): void {
@@ -187,7 +188,7 @@ export default class LocalCapturePlugin extends Plugin {
   async pickTargetAndGenerateSummary(dayKey = this.activeDayKey ?? todayDayKey()): Promise<void> {
     new TargetFileSuggestModal(this, async (target) => {
       await this.captureService.generateDailySummary(dayKey, target);
-    }).open();
+    }, "发送当前日期摘要到文件").open();
   }
 
   async openCaptureFile(capture: CaptureItem): Promise<void> {
@@ -198,6 +199,10 @@ export default class LocalCapturePlugin extends Plugin {
     }
 
     await this.app.workspace.getLeaf(false).openFile(file);
+  }
+
+  runAction(label: string, action: () => void | Promise<unknown>): void {
+    runGuardedAction(label, action);
   }
 
   private registerFileEvents(): void {
@@ -246,7 +251,9 @@ export default class LocalCapturePlugin extends Plugin {
       const files = [...this.queuedIndexUpdates.values()];
       this.queuedIndexUpdates.clear();
       for (const queuedFile of files) {
-        void this.index.updateFile(queuedFile);
+        void this.index.updateFile(queuedFile).catch((error: unknown) => {
+          console.error("Local Capture queued index update failed", queuedFile.path, error);
+        });
       }
     }, 75);
   }
@@ -255,91 +262,91 @@ export default class LocalCapturePlugin extends Plugin {
     this.addCommand({
       id: "open-local-capture",
       name: "打开 Local Capture",
-      callback: () => void this.activateView()
+      callback: () => this.runAction("打开 Local Capture", () => this.activateView())
     });
 
     this.addCommand({
       id: "new-capture",
       name: "新建快速记录",
-      callback: () => new QuickCaptureModal(this).open()
+      callback: () => this.runAction("新建快速记录", () => new QuickCaptureModal(this).open())
     });
 
     this.addCommand({
       id: "paste-clipboard-capture",
       name: "从剪贴板创建记录",
-      callback: () => void this.createFromClipboard()
+      callback: () => this.runAction("从剪贴板创建记录", () => this.createFromClipboard())
     });
 
     this.addCommand({
       id: "rebuild-local-capture-index",
       name: "重建 Local Capture 索引",
-      callback: () => void this.captureService.rebuildIndex()
+      callback: () => this.runAction("重建 Local Capture 索引", () => this.captureService.rebuildIndex())
     });
 
     this.addCommand({
       id: "send-selected-captures-to-file",
       name: "发送选中记录到文件",
-      callback: () => void this.pickTargetAndSend(this.getSelectedCaptures())
+      callback: () => this.runAction("发送选中记录到文件", () => this.pickTargetAndSend(this.getSelectedCaptures()))
     });
 
     this.addCommand({
       id: "batch-tag-selected-captures",
       name: "批量处理选中记录标签",
-      callback: () => this.openBatchTagModal(this.getSelectedCaptures())
+      callback: () => this.runAction("批量处理选中记录标签", () => this.openBatchTagModal(this.getSelectedCaptures()))
     });
 
     this.addCommand({
       id: "batch-type-selected-captures",
       name: "批量修改选中记录类型",
-      callback: () => this.openBatchTypeModal(this.getSelectedCaptures())
+      callback: () => this.runAction("批量修改选中记录类型", () => this.openBatchTypeModal(this.getSelectedCaptures()))
     });
 
     this.addCommand({
       id: "manage-local-capture-tags",
       name: "管理 Local Capture 标签",
-      callback: () => this.openTagManagementModal()
+      callback: () => this.runAction("管理 Local Capture 标签", () => this.openTagManagementModal())
     });
 
     this.addCommand({
       id: "archive-selected-captures",
       name: "归档选中记录",
-      callback: () => void this.captureService.archiveMany(this.getSelectedCaptures())
+      callback: () => this.runAction("归档选中记录", () => this.captureService.archiveMany(this.getSelectedCaptures()))
     });
 
     this.addCommand({
       id: "delete-selected-captures",
       name: "删除选中记录",
-      callback: () => void this.captureService.softDeleteMany(this.getSelectedCaptures())
+      callback: () => this.runAction("删除选中记录", () => this.captureService.softDeleteMany(this.getSelectedCaptures()))
     });
 
     this.addCommand({
       id: "restore-selected-captures",
       name: "恢复选中记录",
-      callback: () => void this.captureService.restoreMany(this.getSelectedCaptures())
+      callback: () => this.runAction("恢复选中记录", () => this.captureService.restoreMany(this.getSelectedCaptures()))
     });
 
     this.addCommand({
       id: "generate-today-daily-summary",
       name: "生成今日摘要",
-      callback: () => void this.captureService.generateDailySummary(todayDayKey())
+      callback: () => this.runAction("生成今日摘要", () => this.captureService.generateDailySummary(todayDayKey()))
     });
 
     this.addCommand({
       id: "generate-current-day-daily-summary",
       name: "生成当前日期摘要",
-      callback: () => void this.generateSummaryForActiveDay()
+      callback: () => this.runAction("生成当前日期摘要", () => this.generateSummaryForActiveDay())
     });
 
     this.addCommand({
       id: "send-current-day-summary-to-file",
       name: "发送当前日期摘要到文件",
-      callback: () => void this.pickTargetAndGenerateSummary()
+      callback: () => this.runAction("发送当前日期摘要到文件", () => this.pickTargetAndGenerateSummary())
     });
 
     this.addCommand({
       id: "run-local-capture-diagnostics",
       name: "运行 Local Capture 诊断",
-      callback: () => void this.runDiagnostics()
+      callback: () => this.runAction("运行 Local Capture 诊断", () => this.runDiagnostics())
     });
   }
 
@@ -352,24 +359,28 @@ export default class LocalCapturePlugin extends Plugin {
 
   private registerUriCapture(): void {
     this.registerObsidianProtocolHandler(PLUGIN_ID, async (params) => {
-      const bodyMarkdown = firstValue(params.text) ?? firstValue(params.body) ?? firstValue(params.content) ?? "";
-      const type = normalizeCaptureType(firstValue(params.type), this.settings.defaultType);
-      const url = firstValue(params.url) ?? firstValue(params.source_url);
+      try {
+        const bodyMarkdown = firstValue(params.text) ?? firstValue(params.body) ?? firstValue(params.content) ?? "";
+        const type = normalizeCaptureType(firstValue(params.type), this.settings.defaultType);
+        const url = firstValue(params.url) ?? firstValue(params.source_url);
 
-      if (!bodyMarkdown.trim()) {
-        new Notice("URI 捕获缺少 text、body 或 content 参数");
-        return;
-      }
-
-      await this.captureService.createCapture({
-        bodyMarkdown,
-        type,
-        source: {
-          type: "uri",
-          url
+        if (!bodyMarkdown.trim()) {
+          new Notice("URI 捕获缺少 text、body 或 content 参数");
+          return;
         }
-      });
-      await this.activateView();
+
+        await this.captureService.createCapture({
+          bodyMarkdown,
+          type,
+          source: {
+            type: "uri",
+            url
+          }
+        });
+        await this.activateView();
+      } catch (error) {
+        reportActionError("URI 捕获", error);
+      }
     });
   }
 

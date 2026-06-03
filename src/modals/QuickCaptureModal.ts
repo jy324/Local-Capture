@@ -34,7 +34,7 @@ export class QuickCaptureModal extends Modal {
     textarea.addEventListener("keydown", (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
-        void this.submit();
+        this.plugin.runAction("保存快速记录", () => this.submit());
       }
     });
 
@@ -55,7 +55,7 @@ export class QuickCaptureModal extends Modal {
         button
           .setButtonText("保存")
           .setCta()
-          .onClick(() => void this.submit());
+          .onClick(() => this.plugin.runAction("保存快速记录", () => this.submit()));
       })
       .addButton((button) => {
         button

@@ -104,13 +104,13 @@ export function CaptureTable({
                 {visibleColumns.has("type") ? <td>{item.type === "task" ? "任务" : "笔记"}</td> : null}
                 {visibleColumns.has("status") ? <td>{statusText(item.status)}</td> : null}
                 {visibleColumns.has("title") ? <td>
-                  <button type="button" onClick={() => void plugin.openCaptureFile(item)}>
+                  <button type="button" onClick={() => plugin.runAction("打开源文件", () => plugin.openCaptureFile(item))}>
                     {item.title ?? "未命名记录"}
                   </button>
                 </td> : null}
                 {visibleColumns.has("tags") ? <td>{item.tags.map((tag) => `#${tag}`).join(" ")}</td> : null}
                 <td>
-                  <button type="button" title="发送到文件" onClick={() => void plugin.pickTargetAndSend([item])}>
+                  <button type="button" title="发送到文件" onClick={() => plugin.runAction("发送到文件", () => plugin.pickTargetAndSend([item]))}>
                     <Send size={14} aria-hidden="true" />
                   </button>
                 </td>

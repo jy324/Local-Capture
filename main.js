@@ -7646,7 +7646,22 @@ function serializeCaptureFile(item) {
   return lines.join("\n");
 }
 
+// src/utils/async.ts
+async function mapWithConcurrency(items, limit, worker) {
+  const concurrency = Math.max(1, Math.min(limit, items.length || 1));
+  let cursor = 0;
+  async function run() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      await worker(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, run));
+}
+
 // src/services/CaptureIndex.ts
+var INDEX_READ_CONCURRENCY = 8;
 var CaptureIndex = class {
   constructor(app, getSettings) {
     this.app = app;
@@ -7654,6 +7669,7 @@ var CaptureIndex = class {
     this.itemsByPath = /* @__PURE__ */ new Map();
     this.listeners = /* @__PURE__ */ new Set();
     this.rebuilding = false;
+    this.rebuildPending = false;
     this.sortedCache = null;
   }
   subscribe(listener) {
@@ -7677,26 +7693,32 @@ var CaptureIndex = class {
     return this.getItems().filter((item) => idSet.has(item.id));
   }
   async rebuild() {
-    if (this.rebuilding) return;
-    this.rebuilding = true;
-    this.notify();
-    try {
-      const next = /* @__PURE__ */ new Map();
-      const files = this.app.vault.getMarkdownFiles().filter((file) => this.isCapturePath(file.path));
-      for (const file of files) {
-        const item = await this.readCapture(file);
-        if (item) {
-          next.set(file.path, item);
-        }
-      }
-      this.itemsByPath.clear();
-      for (const [path, item] of next) {
-        this.itemsByPath.set(path, item);
-      }
-    } finally {
-      this.rebuilding = false;
-      this.notify();
+    if (this.rebuilding) {
+      this.rebuildPending = true;
+      return;
     }
+    do {
+      this.rebuildPending = false;
+      this.rebuilding = true;
+      this.notify();
+      try {
+        const next = /* @__PURE__ */ new Map();
+        const files = this.app.vault.getMarkdownFiles().filter((file) => this.isCapturePath(file.path));
+        await mapWithConcurrency(files, INDEX_READ_CONCURRENCY, async (file) => {
+          const item = await this.readCapture(file);
+          if (item) {
+            next.set(file.path, item);
+          }
+        });
+        this.itemsByPath.clear();
+        for (const [path, item] of next) {
+          this.itemsByPath.set(path, item);
+        }
+      } finally {
+        this.rebuilding = false;
+        this.notify();
+      }
+    } while (this.rebuildPending);
   }
   async updateFile(file) {
     if (!(file instanceof import_obsidian2.TFile) || file.extension !== "md") return;
@@ -7868,20 +7890,6 @@ function taskStatusText(capture) {
 }
 function escapeRegExp2(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// src/utils/async.ts
-async function mapWithConcurrency(items, limit, worker) {
-  const concurrency = Math.max(1, Math.min(limit, items.length || 1));
-  let cursor = 0;
-  async function run() {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      await worker(items[index], index);
-    }
-  }
-  await Promise.all(Array.from({ length: concurrency }, run));
 }
 
 // src/services/CaptureService.ts
@@ -8137,7 +8145,7 @@ var CaptureService = class {
   async createUniquePath(folder, createdAt, firstId) {
     let id = firstId;
     let path = buildCapturePath(folder, createdAt, id);
-    while (await this.app.vault.adapter.exists(path)) {
+    while (this.app.vault.getAbstractFileByPath(path)) {
       id = createShortId();
       path = buildCapturePath(folder, createdAt, id);
     }
@@ -8147,8 +8155,11 @@ var CaptureService = class {
     const settings = this.getSettings();
     const fileName = `${dayKey}.md`;
     const path = settings.dailySummaryTarget === "daily-note" ? (0, import_obsidian3.normalizePath)(settings.dailyNoteFolder ? `${settings.dailyNoteFolder}/${fileName}` : fileName) : (0, import_obsidian3.normalizePath)(`${settings.dailySummaryFolder}/${fileName}`);
-    const existing = this.getFile(path);
-    if (existing) return existing;
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof import_obsidian3.TFile) return existing;
+    if (existing) {
+      throw new Error(`\u6458\u8981\u76EE\u6807\u8DEF\u5F84\u5DF2\u5B58\u5728\u4E14\u4E0D\u662F\u6587\u4EF6\uFF1A${path}`);
+    }
     await this.ensureParentFolder(path);
     await this.app.vault.create(path, "");
     return this.getFile(path);
@@ -8160,14 +8171,15 @@ var CaptureService = class {
     );
     try {
       await this.ensureParentFolder(probePath);
-      await this.app.vault.adapter.write(probePath, "Local Capture diagnostic probe\n");
-      await this.app.vault.adapter.remove(probePath);
+      const probeFile = await this.app.vault.create(probePath, "Local Capture diagnostic probe\n");
+      await this.app.vault.delete(probeFile);
       return true;
     } catch (error) {
       console.error("Local Capture diagnostics failed", error);
       try {
-        if (await this.app.vault.adapter.exists(probePath)) {
-          await this.app.vault.adapter.remove(probePath);
+        const probeFile = this.getFile(probePath);
+        if (probeFile) {
+          await this.app.vault.delete(probeFile);
         }
       } catch (cleanupError) {
         console.error("Local Capture diagnostics cleanup failed", cleanupError);
@@ -8183,8 +8195,20 @@ var CaptureService = class {
     let current = "";
     for (const segment of segments) {
       current = current ? `${current}/${segment}` : segment;
-      if (!await this.app.vault.adapter.exists(current)) {
-        await this.app.vault.adapter.mkdir(current);
+      const existing = this.app.vault.getAbstractFileByPath(current);
+      if (existing instanceof import_obsidian3.TFolder) {
+        continue;
+      }
+      if (existing) {
+        throw new Error(`\u65E0\u6CD5\u521B\u5EFA\u76EE\u5F55\uFF0C\u8DEF\u5F84\u5DF2\u5B58\u5728\u4E14\u4E0D\u662F\u76EE\u5F55\uFF1A${current}`);
+      }
+      try {
+        await this.app.vault.createFolder(current);
+      } catch (error) {
+        const createdByAnotherOperation = this.app.vault.getAbstractFileByPath(current);
+        if (!(createdByAnotherOperation instanceof import_obsidian3.TFolder)) {
+          throw error;
+        }
       }
     }
   }
@@ -8280,7 +8304,7 @@ var QuickCaptureModal = class extends import_obsidian4.Modal {
     textarea.addEventListener("keydown", (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
         event.preventDefault();
-        void this.submit();
+        this.plugin.runAction("\u4FDD\u5B58\u5FEB\u901F\u8BB0\u5F55", () => this.submit());
       }
     });
     new import_obsidian4.Setting(contentEl).setName("\u7C7B\u578B").addDropdown((dropdown) => {
@@ -8289,7 +8313,7 @@ var QuickCaptureModal = class extends import_obsidian4.Modal {
       });
     });
     new import_obsidian4.Setting(contentEl).addButton((button) => {
-      button.setButtonText("\u4FDD\u5B58").setCta().onClick(() => void this.submit());
+      button.setButtonText("\u4FDD\u5B58").setCta().onClick(() => this.plugin.runAction("\u4FDD\u5B58\u5FEB\u901F\u8BB0\u5F55", () => this.submit()));
     }).addButton((button) => {
       button.setButtonText("\u53D6\u6D88").onClick(() => this.close());
     });
@@ -8310,10 +8334,11 @@ var QuickCaptureModal = class extends import_obsidian4.Modal {
 // src/modals/TargetFileSuggestModal.ts
 var import_obsidian5 = require("obsidian");
 var TargetFileSuggestModal = class extends import_obsidian5.FuzzySuggestModal {
-  constructor(plugin, onChoose) {
+  constructor(plugin, onChoose, actionLabel = "\u9009\u62E9\u76EE\u6807\u6587\u4EF6") {
     super(plugin.app);
     this.plugin = plugin;
     this.onChoose = onChoose;
+    this.actionLabel = actionLabel;
     this.setPlaceholder("\u9009\u62E9\u8981\u8FFD\u52A0\u5230\u7684\u76EE\u6807\u7B14\u8BB0");
   }
   getItems() {
@@ -8323,7 +8348,7 @@ var TargetFileSuggestModal = class extends import_obsidian5.FuzzySuggestModal {
     return file.path;
   }
   onChooseItem(file) {
-    void this.onChoose(file);
+    this.plugin.runAction(this.actionLabel, () => this.onChoose(file));
   }
 };
 
@@ -8807,12 +8832,12 @@ function BatchBar({
       selectedItems.length,
       " \u6761"
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => void plugin.pickTargetAndSend(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Send, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u6807\u7B7E", onClick: () => plugin.openBatchTagModal(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Tags, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u7C7B\u578B", onClick: () => plugin.openBatchTypeModal(selectedItems), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ListTodo, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5F52\u6863", onClick: onArchive, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Archive, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6062\u590D", onClick: onRestore, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotateCcw, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5220\u9664", onClick: onDelete, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Trash2, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.runAction("\u53D1\u9001\u5230\u6587\u4EF6", () => plugin.pickTargetAndSend(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Send, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u6807\u7B7E", onClick: () => plugin.runAction("\u6279\u91CF\u6807\u7B7E", () => plugin.openBatchTagModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Tags, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u7C7B\u578B", onClick: () => plugin.runAction("\u6279\u91CF\u7C7B\u578B", () => plugin.openBatchTypeModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ListTodo, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5F52\u6863", onClick: () => plugin.runAction("\u5F52\u6863", onArchive), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Archive, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6062\u590D", onClick: () => plugin.runAction("\u6062\u590D", onRestore), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotateCcw, { size: 15, "aria-hidden": "true" }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5220\u9664", onClick: () => plugin.runAction("\u5220\u9664", onDelete), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Trash2, { size: 15, "aria-hidden": "true" }) }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D6\u6D88\u9009\u62E9", onClick: onClear, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(X, { size: 15, "aria-hidden": "true" }) })
   ] });
 }
@@ -10188,9 +10213,9 @@ function CaptureTable({
           visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: formatDisplayDateTime(item.createdAt) }) : null,
           visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }) : null,
           visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: statusText(item.status) }) : null,
-          visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: () => void plugin.openCaptureFile(item), children: item.title ?? "\u672A\u547D\u540D\u8BB0\u5F55" }) }) : null,
+          visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: () => plugin.runAction("\u6253\u5F00\u6E90\u6587\u4EF6", () => plugin.openCaptureFile(item)), children: item.title ?? "\u672A\u547D\u540D\u8BB0\u5F55" }) }) : null,
           visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: item.tags.map((tag) => `#${tag}`).join(" ") }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => void plugin.pickTargetAndSend([item]), children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Send, { size: 14, "aria-hidden": "true" }) }) })
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.runAction("\u53D1\u9001\u5230\u6587\u4EF6", () => plugin.pickTargetAndSend([item])), children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Send, { size: 14, "aria-hidden": "true" }) }) })
         ] }, item.id);
       }),
       paddingBottom > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("tr", { "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { colSpan: colCount, style: { height: `${paddingBottom}px`, padding: 0, border: 0 } }) }) : null
@@ -10396,8 +10421,23 @@ var import_react7 = __toESM(require_react());
 // src/ui/components/CaptureCard.tsx
 var import_react6 = __toESM(require_react());
 
-// src/ui/shared/IconButton.tsx
+// src/actionErrors.ts
 var import_obsidian6 = require("obsidian");
+function reportActionError(label, error) {
+  console.error(`Local Capture action failed: ${label}`, error);
+  new import_obsidian6.Notice(`\u64CD\u4F5C\u5931\u8D25\uFF1A${label}`);
+}
+function runGuardedAction(label, action) {
+  try {
+    void Promise.resolve(action()).catch((error) => {
+      reportActionError(label, error);
+    });
+  } catch (error) {
+    reportActionError(label, error);
+  }
+}
+
+// src/ui/shared/IconButton.tsx
 var import_jsx_runtime8 = __toESM(require_jsx_runtime());
 function IconButton({ title, children, onClick }) {
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
@@ -10408,13 +10448,7 @@ function IconButton({ title, children, onClick }) {
       title,
       "aria-label": title,
       onClick: () => {
-        const result = onClick();
-        if (result instanceof Promise) {
-          result.catch((error) => {
-            console.error(error);
-            new import_obsidian6.Notice("\u64CD\u4F5C\u5931\u8D25\uFF0C\u8BF7\u67E5\u770B\u63A7\u5236\u53F0");
-          });
-        }
+        runGuardedAction(title, onClick);
       },
       children
     }
@@ -12853,9 +12887,9 @@ function LocalCaptureApp({ plugin }) {
       {
         plugin,
         selectedItems: selection.selectedItems,
-        onArchive: () => void archiveSelected(),
-        onRestore: () => void restoreSelected(),
-        onDelete: () => void deleteSelected(),
+        onArchive: archiveSelected,
+        onRestore: restoreSelected,
+        onDelete: deleteSelected,
         onClear: selection.clear
       }
     ),
@@ -12912,19 +12946,19 @@ var LocalCaptureView = class extends import_obsidian8.ItemView {
   }
   addHeaderActions() {
     this.addAction("refresh-cw", "\u91CD\u5EFA\u7D22\u5F15", () => {
-      void this.plugin.captureService.rebuildIndex();
+      this.plugin.runAction("\u91CD\u5EFA\u7D22\u5F15", () => this.plugin.captureService.rebuildIndex());
     });
     this.addAction("calendar-plus", "\u751F\u6210\u5F53\u524D\u65E5\u671F\u6458\u8981", () => {
-      void this.plugin.generateSummaryForActiveDay();
+      this.plugin.runAction("\u751F\u6210\u5F53\u524D\u65E5\u671F\u6458\u8981", () => this.plugin.generateSummaryForActiveDay());
     });
     this.addAction("send", "\u53D1\u9001\u5F53\u524D\u65E5\u671F\u6458\u8981\u5230\u6587\u4EF6", () => {
-      void this.plugin.pickTargetAndGenerateSummary();
+      this.plugin.runAction("\u53D1\u9001\u5F53\u524D\u65E5\u671F\u6458\u8981\u5230\u6587\u4EF6", () => this.plugin.pickTargetAndGenerateSummary());
     });
     this.addAction("tags", "\u6807\u7B7E\u7BA1\u7406", () => {
-      this.plugin.openTagManagementModal();
+      this.plugin.runAction("\u6807\u7B7E\u7BA1\u7406", () => this.plugin.openTagManagementModal());
     });
     this.addAction("stethoscope", "\u8FD0\u884C\u8BCA\u65AD", () => {
-      void this.plugin.runDiagnostics();
+      this.plugin.runAction("\u8FD0\u884C\u8BCA\u65AD", () => this.plugin.runDiagnostics());
     });
   }
   async onClose() {
@@ -12966,7 +13000,7 @@ var BatchTagModal = class extends import_obsidian9.Modal {
       this.tagsText = input.value;
     });
     new import_obsidian9.Setting(contentEl).addButton((button) => {
-      button.setButtonText("\u5E94\u7528").setCta().onClick(() => void this.submit());
+      button.setButtonText("\u5E94\u7528").setCta().onClick(() => this.plugin.runAction("\u6279\u91CF\u5904\u7406\u6807\u7B7E", () => this.submit()));
     }).addButton((button) => {
       button.setButtonText("\u53D6\u6D88").onClick(() => this.close());
     });
@@ -13007,7 +13041,7 @@ var BatchTypeModal = class extends import_obsidian10.Modal {
       });
     });
     new import_obsidian10.Setting(contentEl).addButton((button) => {
-      button.setButtonText("\u5E94\u7528").setCta().onClick(() => void this.submit());
+      button.setButtonText("\u5E94\u7528").setCta().onClick(() => this.plugin.runAction("\u6279\u91CF\u4FEE\u6539\u7C7B\u578B", () => this.submit()));
     }).addButton((button) => {
       button.setButtonText("\u53D6\u6D88").onClick(() => this.close());
     });
@@ -13050,13 +13084,13 @@ var TagManagementModal = class extends import_obsidian11.Modal {
         }
       });
       color.addEventListener("change", () => {
-        void this.plugin.setTagColor(tag, color.value);
+        this.plugin.runAction("\u8BBE\u7F6E\u6807\u7B7E\u989C\u8272", () => this.plugin.setTagColor(tag, color.value));
       });
       new import_obsidian11.Setting(row).addText((text) => {
         text.setPlaceholder("\u65B0\u6807\u7B7E\u540D");
         text.inputEl.addClass("local-capture-tag-rename-input");
       }).addButton((button) => {
-        button.setButtonText("\u91CD\u547D\u540D").onClick(async () => {
+        button.setButtonText("\u91CD\u547D\u540D").onClick(() => this.plugin.runAction("\u91CD\u547D\u540D\u6807\u7B7E", async () => {
           const input = row.querySelector(".local-capture-tag-rename-input");
           const next = normalizeTag(input?.value ?? "");
           if (!next) return;
@@ -13065,14 +13099,14 @@ var TagManagementModal = class extends import_obsidian11.Modal {
           delete this.plugin.settings.tagColors[tag];
           await this.plugin.saveSettings();
           this.render();
-        });
+        }));
       }).addButton((button) => {
-        button.setButtonText("\u5220\u9664").onClick(async () => {
+        button.setButtonText("\u5220\u9664").onClick(() => this.plugin.runAction("\u5220\u9664\u6807\u7B7E", async () => {
           await this.plugin.captureService.deleteTag(tag);
           delete this.plugin.settings.tagColors[tag];
           await this.plugin.saveSettings();
           this.render();
-        });
+        }));
       });
     }
   }
@@ -13104,7 +13138,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
       (leaf) => new LocalCaptureView(leaf, this)
     );
     this.addRibbonIcon("inbox", "Local Capture", () => {
-      void this.activateView();
+      this.runAction("\u6253\u5F00 Local Capture", () => this.activateView());
     });
     this.addSettingTab(new LocalCaptureSettingTab(this.app, this));
     this.registerFileEvents();
@@ -13168,7 +13202,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
     new TargetFileSuggestModal(this, async (target) => {
       await this.captureService.appendToFile(captures, target);
       this.selectedCaptureIds.clear();
-    }).open();
+    }, "\u53D1\u9001\u9009\u4E2D\u8BB0\u5F55\u5230\u6587\u4EF6").open();
   }
   openBatchTagModal(captures) {
     if (captures.length === 0) {
@@ -13222,7 +13256,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   async pickTargetAndGenerateSummary(dayKey = this.activeDayKey ?? todayDayKey()) {
     new TargetFileSuggestModal(this, async (target) => {
       await this.captureService.generateDailySummary(dayKey, target);
-    }).open();
+    }, "\u53D1\u9001\u5F53\u524D\u65E5\u671F\u6458\u8981\u5230\u6587\u4EF6").open();
   }
   async openCaptureFile(capture) {
     const file = this.app.vault.getAbstractFileByPath(capture.path);
@@ -13231,6 +13265,9 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
       return;
     }
     await this.app.workspace.getLeaf(false).openFile(file);
+  }
+  runAction(label, action) {
+    runGuardedAction(label, action);
   }
   registerFileEvents() {
     this.registerEvent(
@@ -13272,7 +13309,9 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
       const files = [...this.queuedIndexUpdates.values()];
       this.queuedIndexUpdates.clear();
       for (const queuedFile of files) {
-        void this.index.updateFile(queuedFile);
+        void this.index.updateFile(queuedFile).catch((error) => {
+          console.error("Local Capture queued index update failed", queuedFile.path, error);
+        });
       }
     }, 75);
   }
@@ -13280,77 +13319,77 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
     this.addCommand({
       id: "open-local-capture",
       name: "\u6253\u5F00 Local Capture",
-      callback: () => void this.activateView()
+      callback: () => this.runAction("\u6253\u5F00 Local Capture", () => this.activateView())
     });
     this.addCommand({
       id: "new-capture",
       name: "\u65B0\u5EFA\u5FEB\u901F\u8BB0\u5F55",
-      callback: () => new QuickCaptureModal(this).open()
+      callback: () => this.runAction("\u65B0\u5EFA\u5FEB\u901F\u8BB0\u5F55", () => new QuickCaptureModal(this).open())
     });
     this.addCommand({
       id: "paste-clipboard-capture",
       name: "\u4ECE\u526A\u8D34\u677F\u521B\u5EFA\u8BB0\u5F55",
-      callback: () => void this.createFromClipboard()
+      callback: () => this.runAction("\u4ECE\u526A\u8D34\u677F\u521B\u5EFA\u8BB0\u5F55", () => this.createFromClipboard())
     });
     this.addCommand({
       id: "rebuild-local-capture-index",
       name: "\u91CD\u5EFA Local Capture \u7D22\u5F15",
-      callback: () => void this.captureService.rebuildIndex()
+      callback: () => this.runAction("\u91CD\u5EFA Local Capture \u7D22\u5F15", () => this.captureService.rebuildIndex())
     });
     this.addCommand({
       id: "send-selected-captures-to-file",
       name: "\u53D1\u9001\u9009\u4E2D\u8BB0\u5F55\u5230\u6587\u4EF6",
-      callback: () => void this.pickTargetAndSend(this.getSelectedCaptures())
+      callback: () => this.runAction("\u53D1\u9001\u9009\u4E2D\u8BB0\u5F55\u5230\u6587\u4EF6", () => this.pickTargetAndSend(this.getSelectedCaptures()))
     });
     this.addCommand({
       id: "batch-tag-selected-captures",
       name: "\u6279\u91CF\u5904\u7406\u9009\u4E2D\u8BB0\u5F55\u6807\u7B7E",
-      callback: () => this.openBatchTagModal(this.getSelectedCaptures())
+      callback: () => this.runAction("\u6279\u91CF\u5904\u7406\u9009\u4E2D\u8BB0\u5F55\u6807\u7B7E", () => this.openBatchTagModal(this.getSelectedCaptures()))
     });
     this.addCommand({
       id: "batch-type-selected-captures",
       name: "\u6279\u91CF\u4FEE\u6539\u9009\u4E2D\u8BB0\u5F55\u7C7B\u578B",
-      callback: () => this.openBatchTypeModal(this.getSelectedCaptures())
+      callback: () => this.runAction("\u6279\u91CF\u4FEE\u6539\u9009\u4E2D\u8BB0\u5F55\u7C7B\u578B", () => this.openBatchTypeModal(this.getSelectedCaptures()))
     });
     this.addCommand({
       id: "manage-local-capture-tags",
       name: "\u7BA1\u7406 Local Capture \u6807\u7B7E",
-      callback: () => this.openTagManagementModal()
+      callback: () => this.runAction("\u7BA1\u7406 Local Capture \u6807\u7B7E", () => this.openTagManagementModal())
     });
     this.addCommand({
       id: "archive-selected-captures",
       name: "\u5F52\u6863\u9009\u4E2D\u8BB0\u5F55",
-      callback: () => void this.captureService.archiveMany(this.getSelectedCaptures())
+      callback: () => this.runAction("\u5F52\u6863\u9009\u4E2D\u8BB0\u5F55", () => this.captureService.archiveMany(this.getSelectedCaptures()))
     });
     this.addCommand({
       id: "delete-selected-captures",
       name: "\u5220\u9664\u9009\u4E2D\u8BB0\u5F55",
-      callback: () => void this.captureService.softDeleteMany(this.getSelectedCaptures())
+      callback: () => this.runAction("\u5220\u9664\u9009\u4E2D\u8BB0\u5F55", () => this.captureService.softDeleteMany(this.getSelectedCaptures()))
     });
     this.addCommand({
       id: "restore-selected-captures",
       name: "\u6062\u590D\u9009\u4E2D\u8BB0\u5F55",
-      callback: () => void this.captureService.restoreMany(this.getSelectedCaptures())
+      callback: () => this.runAction("\u6062\u590D\u9009\u4E2D\u8BB0\u5F55", () => this.captureService.restoreMany(this.getSelectedCaptures()))
     });
     this.addCommand({
       id: "generate-today-daily-summary",
       name: "\u751F\u6210\u4ECA\u65E5\u6458\u8981",
-      callback: () => void this.captureService.generateDailySummary(todayDayKey())
+      callback: () => this.runAction("\u751F\u6210\u4ECA\u65E5\u6458\u8981", () => this.captureService.generateDailySummary(todayDayKey()))
     });
     this.addCommand({
       id: "generate-current-day-daily-summary",
       name: "\u751F\u6210\u5F53\u524D\u65E5\u671F\u6458\u8981",
-      callback: () => void this.generateSummaryForActiveDay()
+      callback: () => this.runAction("\u751F\u6210\u5F53\u524D\u65E5\u671F\u6458\u8981", () => this.generateSummaryForActiveDay())
     });
     this.addCommand({
       id: "send-current-day-summary-to-file",
       name: "\u53D1\u9001\u5F53\u524D\u65E5\u671F\u6458\u8981\u5230\u6587\u4EF6",
-      callback: () => void this.pickTargetAndGenerateSummary()
+      callback: () => this.runAction("\u53D1\u9001\u5F53\u524D\u65E5\u671F\u6458\u8981\u5230\u6587\u4EF6", () => this.pickTargetAndGenerateSummary())
     });
     this.addCommand({
       id: "run-local-capture-diagnostics",
       name: "\u8FD0\u884C Local Capture \u8BCA\u65AD",
-      callback: () => void this.runDiagnostics()
+      callback: () => this.runAction("\u8FD0\u884C Local Capture \u8BCA\u65AD", () => this.runDiagnostics())
     });
   }
   async runDiagnostics() {
@@ -13361,22 +13400,26 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   }
   registerUriCapture() {
     this.registerObsidianProtocolHandler(PLUGIN_ID, async (params) => {
-      const bodyMarkdown = firstValue(params.text) ?? firstValue(params.body) ?? firstValue(params.content) ?? "";
-      const type = normalizeCaptureType(firstValue(params.type), this.settings.defaultType);
-      const url = firstValue(params.url) ?? firstValue(params.source_url);
-      if (!bodyMarkdown.trim()) {
-        new import_obsidian12.Notice("URI \u6355\u83B7\u7F3A\u5C11 text\u3001body \u6216 content \u53C2\u6570");
-        return;
-      }
-      await this.captureService.createCapture({
-        bodyMarkdown,
-        type,
-        source: {
-          type: "uri",
-          url
+      try {
+        const bodyMarkdown = firstValue(params.text) ?? firstValue(params.body) ?? firstValue(params.content) ?? "";
+        const type = normalizeCaptureType(firstValue(params.type), this.settings.defaultType);
+        const url = firstValue(params.url) ?? firstValue(params.source_url);
+        if (!bodyMarkdown.trim()) {
+          new import_obsidian12.Notice("URI \u6355\u83B7\u7F3A\u5C11 text\u3001body \u6216 content \u53C2\u6570");
+          return;
         }
-      });
-      await this.activateView();
+        await this.captureService.createCapture({
+          bodyMarkdown,
+          type,
+          source: {
+            type: "uri",
+            url
+          }
+        });
+        await this.activateView();
+      } catch (error) {
+        reportActionError("URI \u6355\u83B7", error);
+      }
     });
   }
   async createFromClipboard() {

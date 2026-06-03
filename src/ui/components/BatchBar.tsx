@@ -6,9 +6,9 @@ import { CaptureItem } from "../../types";
 interface BatchBarProps {
   plugin: LocalCapturePlugin;
   selectedItems: CaptureItem[];
-  onArchive: () => void;
-  onRestore: () => void;
-  onDelete: () => void;
+  onArchive: () => void | Promise<void>;
+  onRestore: () => void | Promise<void>;
+  onDelete: () => void | Promise<void>;
   onClear: () => void;
 }
 
@@ -25,22 +25,22 @@ export function BatchBar({
   return (
     <div className="local-capture-batchbar">
       <span>{selectedItems.length} 条</span>
-      <button type="button" title="发送到文件" onClick={() => void plugin.pickTargetAndSend(selectedItems)}>
+      <button type="button" title="发送到文件" onClick={() => plugin.runAction("发送到文件", () => plugin.pickTargetAndSend(selectedItems))}>
         <Send size={15} aria-hidden="true" />
       </button>
-      <button type="button" title="批量标签" onClick={() => plugin.openBatchTagModal(selectedItems)}>
+      <button type="button" title="批量标签" onClick={() => plugin.runAction("批量标签", () => plugin.openBatchTagModal(selectedItems))}>
         <Tags size={15} aria-hidden="true" />
       </button>
-      <button type="button" title="批量类型" onClick={() => plugin.openBatchTypeModal(selectedItems)}>
+      <button type="button" title="批量类型" onClick={() => plugin.runAction("批量类型", () => plugin.openBatchTypeModal(selectedItems))}>
         <ListTodo size={15} aria-hidden="true" />
       </button>
-      <button type="button" title="归档" onClick={onArchive}>
+      <button type="button" title="归档" onClick={() => plugin.runAction("归档", onArchive)}>
         <Archive size={15} aria-hidden="true" />
       </button>
-      <button type="button" title="恢复" onClick={onRestore}>
+      <button type="button" title="恢复" onClick={() => plugin.runAction("恢复", onRestore)}>
         <RotateCcw size={15} aria-hidden="true" />
       </button>
-      <button type="button" title="删除" onClick={onDelete}>
+      <button type="button" title="删除" onClick={() => plugin.runAction("删除", onDelete)}>
         <Trash2 size={15} aria-hidden="true" />
       </button>
       <button type="button" title="取消选择" onClick={onClear}>

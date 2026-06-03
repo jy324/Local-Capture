@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.2
+
+- Added guarded error handling for commands, view actions, modals, and table/batch controls so failed async actions show user-facing notices.
+- Reworked folder creation and diagnostics probes to use Obsidian Vault APIs instead of direct adapter writes.
+- Added bounded, pending-aware index rebuilds for large vaults and overlapping rebuild requests.
+- Split agent, QA, release, and Obsidian review guidance into focused docs.
+- Added regression tests for action error reporting, vault folder/diagnostics behavior, and index rebuild concurrency.
+
 ## 0.9.1
 
 - Fixed empty-vault rebuild state so the first-run empty state appears after indexing completes.

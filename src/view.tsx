@@ -37,19 +37,19 @@ export class LocalCaptureView extends ItemView {
 
   private addHeaderActions(): void {
     this.addAction("refresh-cw", "重建索引", () => {
-      void this.plugin.captureService.rebuildIndex();
+      this.plugin.runAction("重建索引", () => this.plugin.captureService.rebuildIndex());
     });
     this.addAction("calendar-plus", "生成当前日期摘要", () => {
-      void this.plugin.generateSummaryForActiveDay();
+      this.plugin.runAction("生成当前日期摘要", () => this.plugin.generateSummaryForActiveDay());
     });
     this.addAction("send", "发送当前日期摘要到文件", () => {
-      void this.plugin.pickTargetAndGenerateSummary();
+      this.plugin.runAction("发送当前日期摘要到文件", () => this.plugin.pickTargetAndGenerateSummary());
     });
     this.addAction("tags", "标签管理", () => {
-      this.plugin.openTagManagementModal();
+      this.plugin.runAction("标签管理", () => this.plugin.openTagManagementModal());
     });
     this.addAction("stethoscope", "运行诊断", () => {
-      void this.plugin.runDiagnostics();
+      this.plugin.runAction("运行诊断", () => this.plugin.runDiagnostics());
     });
   }
 

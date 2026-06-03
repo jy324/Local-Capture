@@ -39,7 +39,7 @@ export class BatchTypeModal extends Modal {
         button
           .setButtonText("应用")
           .setCta()
-          .onClick(() => void this.submit());
+          .onClick(() => this.plugin.runAction("批量修改类型", () => this.submit()));
       })
       .addButton((button) => {
         button.setButtonText("取消").onClick(() => this.close());

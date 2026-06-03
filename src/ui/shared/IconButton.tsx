@@ -1,5 +1,5 @@
-import { Notice } from "obsidian";
 import { JSX } from "react";
+import { runGuardedAction } from "../../actionErrors";
 
 interface IconButtonProps {
   title: string;
@@ -15,13 +15,7 @@ export function IconButton({ title, children, onClick }: IconButtonProps): JSX.E
       title={title}
       aria-label={title}
       onClick={() => {
-        const result = onClick();
-        if (result instanceof Promise) {
-          result.catch((error) => {
-            console.error(error);
-            new Notice("操作失败，请查看控制台");
-          });
-        }
+        runGuardedAction(title, onClick);
       }}
     >
       {children}

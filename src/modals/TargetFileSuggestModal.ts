@@ -4,7 +4,8 @@ import type LocalCapturePlugin from "../main";
 export class TargetFileSuggestModal extends FuzzySuggestModal<TFile> {
   constructor(
     private readonly plugin: LocalCapturePlugin,
-    private readonly onChoose: (file: TFile) => void | Promise<void>
+    private readonly onChoose: (file: TFile) => void | Promise<void>,
+    private readonly actionLabel = "选择目标文件"
   ) {
     super(plugin.app);
     this.setPlaceholder("选择要追加到的目标笔记");
@@ -21,6 +22,6 @@ export class TargetFileSuggestModal extends FuzzySuggestModal<TFile> {
   }
 
   onChooseItem(file: TFile): void {
-    void this.onChoose(file);
+    this.plugin.runAction(this.actionLabel, () => this.onChoose(file));
   }
 }

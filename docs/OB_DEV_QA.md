@@ -6,8 +6,8 @@ This document records the Local Capture QA pass performed against the real Obsid
 
 - Vault: `ob-dev`
 - Vault path: `D:\Documents\Projects\ob-dev`
-- Plugin version: `0.9.1`
-- Test date: `2026-06-03` (Asia/Shanghai)
+- Plugin version: `0.9.2`
+- Test date: `2026-06-04` (Asia/Shanghai)
 - Install command: `npm run qa:vault -- "D:\Documents\Projects\ob-dev"`
 
 ## Automated Checks
@@ -29,7 +29,7 @@ plugins filter=community versions format=json
 [
   {
     "id": "local-capture",
-    "version": "0.9.1"
+      "version": "0.9.2"
   }
 ]
 ```
@@ -58,7 +58,7 @@ dev:errors
 No errors captured.
 ```
 
-Note: the vault plugin manifest at `.obsidian/plugins/local-capture/manifest.json` also reports `0.9.1`. The CLI plugin list JSON was used as the version source because the single-plugin detail command can return stale cached metadata immediately after reload.
+Note: the vault plugin manifest at `.obsidian/plugins/local-capture/manifest.json` also reports `0.9.2`. The CLI plugin list JSON was used as the version source because the single-plugin detail command can return stale cached metadata immediately after reload.
 
 ## Feature Screenshots
 
@@ -121,4 +121,4 @@ Daily Summary content was verified through the generated fixture and includes th
 
 - The screenshots are real Obsidian screenshots captured through `dev:screenshot`.
 - The test did not mutate existing user notes outside the generated `Captures/` and `Local Capture QA/` fixture paths.
-- The plugin reported no captured runtime errors after the v0.9.1 QA pass.
+- The plugin reported no captured runtime errors after the v0.9.2 QA pass.

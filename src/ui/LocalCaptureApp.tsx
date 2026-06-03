@@ -157,9 +157,9 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
       <BatchBar
         plugin={plugin}
         selectedItems={selection.selectedItems}
-        onArchive={() => void archiveSelected()}
-        onRestore={() => void restoreSelected()}
-        onDelete={() => void deleteSelected()}
+        onArchive={archiveSelected}
+        onRestore={restoreSelected}
+        onDelete={deleteSelected}
         onClear={selection.clear}
       />
 

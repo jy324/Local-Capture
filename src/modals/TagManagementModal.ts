@@ -36,7 +36,7 @@ export class TagManagementModal extends Modal {
         }
       });
       color.addEventListener("change", () => {
-        void this.plugin.setTagColor(tag, color.value);
+        this.plugin.runAction("设置标签颜色", () => this.plugin.setTagColor(tag, color.value));
       });
 
       new Setting(row)
@@ -47,7 +47,7 @@ export class TagManagementModal extends Modal {
         .addButton((button) => {
           button
             .setButtonText("重命名")
-            .onClick(async () => {
+            .onClick(() => this.plugin.runAction("重命名标签", async () => {
               const input = row.querySelector<HTMLInputElement>(".local-capture-tag-rename-input");
               const next = normalizeTag(input?.value ?? "");
               if (!next) return;
@@ -56,17 +56,17 @@ export class TagManagementModal extends Modal {
               delete this.plugin.settings.tagColors[tag];
               await this.plugin.saveSettings();
               this.render();
-            });
+            }));
         })
         .addButton((button) => {
           button
             .setButtonText("删除")
-            .onClick(async () => {
+            .onClick(() => this.plugin.runAction("删除标签", async () => {
               await this.plugin.captureService.deleteTag(tag);
               delete this.plugin.settings.tagColors[tag];
               await this.plugin.saveSettings();
               this.render();
-            });
+            }));
         });
     }
   }
