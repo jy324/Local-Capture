@@ -44,7 +44,11 @@ export function AdvancedFilters(props: AdvancedFiltersProps): JSX.Element {
         高级筛选
       </button>
 
-      {open ? <AdvancedFiltersBody {...props} /> : null}
+      <div className={`local-capture-advanced-body ${open ? "is-expanded" : "is-collapsed"}`}>
+        <div className="local-capture-advanced-inner">
+          <AdvancedFiltersBody {...props} />
+        </div>
+      </div>
     </section>
   );
 }

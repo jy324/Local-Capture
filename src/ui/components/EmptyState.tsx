@@ -20,7 +20,7 @@ export function EmptyState({ variant, captureFolder, onClearFilters }: EmptyStat
   if (variant === "first-run") {
     return (
       <div className="local-capture-empty local-capture-empty-onboarding">
-        <Inbox size={32} aria-hidden="true" />
+        <Inbox size={36} aria-hidden="true" />
         <span className="local-capture-empty-title">还没有任何记录</span>
         <p className="local-capture-empty-desc">
           在上方输入框写下想法，按

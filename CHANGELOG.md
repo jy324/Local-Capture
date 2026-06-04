@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.4
+
+- Added micro-interaction transitions to all interactive elements (icon buttons, tabs, tag pills, heatmap cells) with GPU-composited transforms.
+- Added card hover elevation with subtle box-shadow lift and smooth border transitions.
+- Established spatial hierarchy: composer elevated with shadow, filter bar compressed, advanced filters recessed, timeline expanded.
+- Refined card design: larger border-radius, increased body padding, softened internal separators, enhanced selected/archived/deleted visual states.
+- Added input focus rings with accent-colored glow on composer textarea and search field.
+- Redesigned BatchBar with slide-in animation, accent-tinted background, and count badge.
+- Added smooth grid-template-rows expand/collapse animation for advanced filters section.
+- Improved typography rhythm with tabular-nums, font-weight hierarchy, and refined empty state spacing.
+- Enhanced empty state onboarding with card-like container, breathing icon animation, and larger spinner.
+- Added `prefers-reduced-motion` support to disable all animations and transitions for accessibility.
+
 ## 0.9.3
 
 - Added edit draft protection so card edits keep a single active draft session while the view re-renders, filters, or virtualized rows unmount.

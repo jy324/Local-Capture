@@ -8798,7 +8798,7 @@ function AdvancedFilters(props) {
         ]
       }
     ),
-    open ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AdvancedFiltersBody, { ...props }) : null
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: `local-capture-advanced-body ${open ? "is-expanded" : "is-collapsed"}`, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-advanced-inner", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(AdvancedFiltersBody, { ...props }) }) })
   ] });
 }
 function AdvancedFiltersBody({
@@ -8877,10 +8877,8 @@ function BatchBar({
 }) {
   if (selectedItems.length === 0) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "local-capture-batchbar", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { children: [
-      selectedItems.length,
-      " \u6761"
-    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "local-capture-batchbar-count", children: selectedItems.length }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "local-capture-batchbar-label", children: "\u6761" }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.runAction("\u53D1\u9001\u5230\u6587\u4EF6", () => plugin.pickTargetAndSend(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Send, { size: 15, "aria-hidden": "true" }) }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u6807\u7B7E", onClick: () => plugin.runAction("\u6279\u91CF\u6807\u7B7E", () => plugin.openBatchTagModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Tags, { size: 15, "aria-hidden": "true" }) }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u7C7B\u578B", onClick: () => plugin.runAction("\u6279\u91CF\u7C7B\u578B", () => plugin.openBatchTypeModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ListTodo, { size: 15, "aria-hidden": "true" }) }),
@@ -10361,7 +10359,7 @@ function EmptyState({ variant, captureFolder, onClearFilters }) {
   }
   if (variant === "first-run") {
     return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-empty local-capture-empty-onboarding", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Inbox, { size: 32, "aria-hidden": "true" }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Inbox, { size: 36, "aria-hidden": "true" }),
       /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "local-capture-empty-title", children: "\u8FD8\u6CA1\u6709\u4EFB\u4F55\u8BB0\u5F55" }),
       /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("p", { className: "local-capture-empty-desc", children: [
         "\u5728\u4E0A\u65B9\u8F93\u5165\u6846\u5199\u4E0B\u60F3\u6CD5\uFF0C\u6309",

@@ -24,7 +24,8 @@ export function BatchBar({
 
   return (
     <div className="local-capture-batchbar">
-      <span>{selectedItems.length} 条</span>
+      <span className="local-capture-batchbar-count">{selectedItems.length}</span>
+      <span className="local-capture-batchbar-label">条</span>
       <button type="button" title="发送到文件" onClick={() => plugin.runAction("发送到文件", () => plugin.pickTargetAndSend(selectedItems))}>
         <Send size={15} aria-hidden="true" />
       </button>
