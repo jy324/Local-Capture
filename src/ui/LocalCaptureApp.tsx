@@ -1,7 +1,8 @@
 import { JSX, useEffect, useMemo, useState } from "react";
 import type LocalCapturePlugin from "../main";
-import { CaptureType } from "../types";
+import { CaptureItem, CaptureType } from "../types";
 import { todayDayKey } from "../utils/dates";
+import { confirmAction } from "../modals/ConfirmActionModal";
 import { AdvancedFilters } from "./components/AdvancedFilters";
 import { BatchBar } from "./components/BatchBar";
 import { CaptureTable, TableColumnControls } from "./components/CaptureTable";
@@ -15,7 +16,14 @@ import { useSavedQueries } from "./hooks/useSavedQueries";
 import { useSelection } from "./hooks/useSelection";
 import { useTableSort } from "./hooks/useTableSort";
 import { buildDefaultQueryName } from "./shared/formatters";
-import { ViewMode } from "./types";
+import { EditSession, ViewMode } from "./types";
+import {
+  canDiscardEditWithoutConfirm,
+  createEditSession,
+  hasEditConflict,
+  isEditDirty,
+  updateEditDraft
+} from "./editSession";
 
 interface LocalCaptureAppProps {
   plugin: LocalCapturePlugin;
@@ -28,6 +36,7 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
   const [draftType, setDraftType] = useState<CaptureType>(plugin.settings.defaultType);
   const [viewMode, setViewMode] = useState<ViewMode>("timeline");
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(() => plugin.settings.advancedFiltersOpen);
+  const [editSession, setEditSession] = useState<EditSession | null>(null);
 
   const filters = useCaptureFilters(items);
   const { filteredItems, query, status, selectedDay } = filters;
@@ -90,6 +99,48 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
     selection.clear();
   }
 
+  async function confirmDiscardEdit(): Promise<boolean> {
+    if (canDiscardEditWithoutConfirm(editSession)) return true;
+    return confirmAction(plugin, {
+      title: "放弃未保存修改？",
+      message: "当前记录有未保存的编辑内容，放弃后无法恢复。",
+      confirmText: "放弃修改",
+      destructive: true
+    });
+  }
+
+  async function startEdit(item: CaptureItem): Promise<void> {
+    if (editSession?.captureId === item.id) return;
+    if (!(await confirmDiscardEdit())) return;
+    setEditSession(createEditSession(item));
+  }
+
+  function changeEditBody(body: string): void {
+    setEditSession((current) => current ? updateEditDraft(current, body) : current);
+  }
+
+  async function cancelEdit(): Promise<void> {
+    if (!(await confirmDiscardEdit())) return;
+    setEditSession(null);
+  }
+
+  async function saveEdit(item: CaptureItem): Promise<void> {
+    if (!editSession || editSession.captureId !== item.id) return;
+    const conflict = hasEditConflict(editSession, item);
+    if (conflict) {
+      const confirmed = await confirmAction(plugin, {
+        title: "覆盖外部更新？",
+        message: "源文件已在编辑期间更新。继续保存会用当前草稿覆盖正文。",
+        confirmText: "覆盖保存",
+        destructive: true
+      });
+      if (!confirmed) return;
+    }
+
+    await plugin.captureService.updateBody(item, editSession.draftBody);
+    setEditSession(null);
+  }
+
   function applySavedQuery(id: string): void {
     savedQueriesState.setSavedQueryId(id);
     const saved = savedQueriesState.savedQueries.find((savedQuery) => savedQuery.id === id);
@@ -114,6 +165,7 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
   const listIsEmpty = filteredItems.length === 0;
   const hasNoData = items.length === 0;
   const hasActiveFilter = Boolean(query.trim()) || status !== "active" || Boolean(selectedDay);
+  const editDirty = isEditDirty(editSession);
 
   return (
     <div className="local-capture-app">
@@ -177,6 +229,13 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
           items={filteredItems}
           isSelected={selection.has}
           onToggleSelected={selection.toggle}
+          editSession={editSession}
+          onStartEdit={(item) => plugin.runAction("编辑记录", () => startEdit(item))}
+          onEditBodyChange={changeEditBody}
+          onSaveEdit={(item) => plugin.runAction("保存编辑", () => saveEdit(item))}
+          onCancelEdit={() => plugin.runAction("取消编辑", () => cancelEdit())}
+          isEditDirty={editDirty}
+          hasEditConflict={(item) => hasEditConflict(editSession, item)}
         />
       ) : (
         <>

@@ -7285,7 +7285,7 @@ __export(main_exports, {
   default: () => LocalCapturePlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 
 // src/constants.ts
 var VIEW_TYPE_LOCAL_CAPTURE = "local-capture-view";
@@ -8353,11 +8353,60 @@ var TargetFileSuggestModal = class extends import_obsidian5.FuzzySuggestModal {
 };
 
 // src/view.tsx
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 var import_client = __toESM(require_client());
 
 // src/ui/LocalCaptureApp.tsx
-var import_react13 = __toESM(require_react());
+var import_react12 = __toESM(require_react());
+
+// src/modals/ConfirmActionModal.ts
+var import_obsidian6 = require("obsidian");
+function confirmAction(plugin, options) {
+  return new Promise((resolve) => {
+    new ConfirmActionModal(plugin, options, resolve).open();
+  });
+}
+var ConfirmActionModal = class extends import_obsidian6.Modal {
+  constructor(plugin, options, resolve) {
+    super(plugin.app);
+    this.options = options;
+    this.resolve = resolve;
+    this.resolved = false;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("local-capture-modal");
+    contentEl.createEl("h2", { text: this.options.title });
+    contentEl.createEl("p", {
+      text: this.options.message,
+      cls: "local-capture-modal-desc"
+    });
+    new import_obsidian6.Setting(contentEl).addButton((button) => {
+      button.setButtonText(this.options.cancelText ?? "\u53D6\u6D88").onClick(() => {
+        this.finish(false);
+      });
+    }).addButton((button) => {
+      button.setButtonText(this.options.confirmText).setCta().onClick(() => {
+        this.finish(true);
+      });
+      if (this.options.destructive) {
+        button.buttonEl.addClass("mod-warning");
+      }
+    });
+  }
+  onClose() {
+    if (!this.resolved) {
+      this.finish(false);
+    }
+  }
+  finish(confirmed) {
+    if (this.resolved) return;
+    this.resolved = true;
+    this.resolve(confirmed);
+    this.close();
+  }
+};
 
 // node_modules/lucide-react/dist/esm/createLucideIcon.js
 var import_react2 = __toESM(require_react());
@@ -10416,16 +10465,13 @@ function StatusButton({ label, value, status, onChange }) {
 }
 
 // src/ui/components/Timeline.tsx
-var import_react7 = __toESM(require_react());
-
-// src/ui/components/CaptureCard.tsx
 var import_react6 = __toESM(require_react());
 
 // src/actionErrors.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 function reportActionError(label, error) {
   console.error(`Local Capture action failed: ${label}`, error);
-  new import_obsidian6.Notice(`\u64CD\u4F5C\u5931\u8D25\uFF1A${label}`);
+  new import_obsidian7.Notice(`\u64CD\u4F5C\u5931\u8D25\uFF1A${label}`);
 }
 function runGuardedAction(label, action) {
   try {
@@ -10456,7 +10502,7 @@ function IconButton({ title, children, onClick }) {
 }
 
 // src/ui/MarkdownPreview.tsx
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 var import_react5 = __toESM(require_react());
 var import_jsx_runtime9 = __toESM(require_jsx_runtime());
 function MarkdownPreview({ markdown, sourcePath, plugin }) {
@@ -10465,30 +10511,43 @@ function MarkdownPreview({ markdown, sourcePath, plugin }) {
     const element = ref.current;
     if (!element) return;
     element.empty();
-    void import_obsidian7.MarkdownRenderer.render(plugin.app, markdown, element, sourcePath, plugin);
+    void import_obsidian8.MarkdownRenderer.render(plugin.app, markdown, element, sourcePath, plugin);
   }, [markdown, plugin, sourcePath]);
   return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { ref, className: "local-capture-markdown markdown-rendered" });
 }
 
 // src/ui/components/CaptureCard.tsx
 var import_jsx_runtime10 = __toESM(require_jsx_runtime());
-function CaptureCard({ plugin, item, selected, onToggleSelected }) {
-  const [editing, setEditing] = (0, import_react6.useState)(false);
-  const [body, setBody] = (0, import_react6.useState)(item.bodyMarkdown);
-  (0, import_react6.useEffect)(() => {
-    if (!editing) {
-      setBody(item.bodyMarkdown);
-    }
-  }, [editing, item.bodyMarkdown]);
-  async function saveEdit() {
-    await plugin.captureService.updateBody(item, body);
-    setEditing(false);
-  }
+function CaptureCard({
+  plugin,
+  item,
+  selected,
+  onToggleSelected,
+  editing,
+  editBody,
+  editDirty,
+  editConflict,
+  onStartEdit,
+  onEditBodyChange,
+  onSaveEdit,
+  onCancelEdit
+}) {
   async function toggleTask() {
     await plugin.captureService.setTaskStatus(item, item.taskStatus === "done" ? "todo" : "done");
   }
   async function restore() {
     await plugin.captureService.setStatus(item, "active");
+  }
+  function onEditKeyDown(event) {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      onSaveEdit();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onCancelEdit();
+    }
   }
   return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("article", { className: `local-capture-card ${selected ? "is-selected" : ""} status-${item.status}`, children: [
     /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("header", { className: "local-capture-card-header", children: [
@@ -10519,23 +10578,27 @@ function CaptureCard({ plugin, item, selected, onToggleSelected }) {
           }
         ),
         editing ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u4FDD\u5B58\u7F16\u8F91", onClick: saveEdit, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Check, { size: 16 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u53D6\u6D88\u7F16\u8F91", onClick: () => setEditing(false), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(X, { size: 16 }) })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u7F16\u8F91", onClick: () => setEditing(true), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Pencil, { size: 16 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u4FDD\u5B58\u7F16\u8F91", onClick: onSaveEdit, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Check, { size: 16 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u53D6\u6D88\u7F16\u8F91", onClick: onCancelEdit, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(X, { size: 16 }) })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u7F16\u8F91", onClick: onStartEdit, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Pencil, { size: 16 }) }),
         /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.pickTargetAndSend([item]), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Send, { size: 16 }) }),
         /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u6253\u5F00\u6E90\u6587\u4EF6", onClick: () => plugin.openCaptureFile(item), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ExternalLink, { size: 16 }) }),
         item.status === "active" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u5F52\u6863", onClick: () => plugin.captureService.setStatus(item, "archived"), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Archive, { size: 16 }) }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u6062\u590D", onClick: restore, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ArchiveRestore, { size: 16 }) }),
         item.status !== "deleted" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u5220\u9664", onClick: () => plugin.captureService.setStatus(item, "deleted"), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Trash2, { size: 16 }) }) : null
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-card-body", children: editing ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-      "textarea",
-      {
-        className: "local-capture-edit",
-        value: body,
-        onChange: (event) => setBody(event.currentTarget.value)
-      }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MarkdownPreview, { markdown: item.bodyMarkdown, sourcePath: item.path, plugin }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-card-body", children: editing ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "local-capture-edit-wrap", children: [
+      editConflict ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-edit-alert", role: "status", children: "\u6E90\u6587\u4EF6\u5DF2\u66F4\u65B0\uFF0C\u4FDD\u5B58\u4F1A\u8986\u76D6\u5F53\u524D\u6B63\u6587\u3002" }) : editDirty ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-edit-status", role: "status", children: "\u672A\u4FDD\u5B58" }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        "textarea",
+        {
+          className: "local-capture-edit",
+          value: editBody,
+          onChange: (event) => onEditBodyChange(event.currentTarget.value),
+          onKeyDown: onEditKeyDown
+        }
+      )
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MarkdownPreview, { markdown: item.bodyMarkdown, sourcePath: item.path, plugin }) }),
     /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("footer", { className: "local-capture-card-footer", children: [
       /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: formatDisplayTime(item.createdAt) }),
       /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-tags", children: item.tags.map((tag) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { children: [
@@ -10548,8 +10611,20 @@ function CaptureCard({ plugin, item, selected, onToggleSelected }) {
 
 // src/ui/components/Timeline.tsx
 var import_jsx_runtime11 = __toESM(require_jsx_runtime());
-function Timeline({ plugin, items, isSelected, onToggleSelected }) {
-  const parentRef = (0, import_react7.useRef)(null);
+function Timeline({
+  plugin,
+  items,
+  isSelected,
+  onToggleSelected,
+  editSession,
+  onStartEdit,
+  onEditBodyChange,
+  onSaveEdit,
+  onCancelEdit,
+  isEditDirty: isEditDirty2,
+  hasEditConflict: hasEditConflict2
+}) {
+  const parentRef = (0, import_react6.useRef)(null);
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
@@ -10580,7 +10655,15 @@ function Timeline({ plugin, items, isSelected, onToggleSelected }) {
                 plugin,
                 item,
                 selected: isSelected(item.id),
-                onToggleSelected: () => onToggleSelected(item.id)
+                onToggleSelected: () => onToggleSelected(item.id),
+                editing: editSession?.captureId === item.id,
+                editBody: editSession?.captureId === item.id ? editSession.draftBody : item.bodyMarkdown,
+                editDirty: editSession?.captureId === item.id ? isEditDirty2 : false,
+                editConflict: hasEditConflict2(item),
+                onStartEdit: () => onStartEdit(item),
+                onEditBodyChange,
+                onSaveEdit: () => onSaveEdit(item),
+                onCancelEdit
               }
             )
           },
@@ -12590,25 +12673,25 @@ Fuse.use = function(...plugins) {
 };
 
 // src/ui/hooks/useCaptureFilters.ts
-var import_react8 = __toESM(require_react());
+var import_react7 = __toESM(require_react());
 function useCaptureFilters(items) {
-  const [query, setQuery] = (0, import_react8.useState)("");
-  const [status, setStatus] = (0, import_react8.useState)("active");
-  const [selectedDay, setSelectedDay] = (0, import_react8.useState)();
-  const [debouncedQuery, setDebouncedQuery] = (0, import_react8.useState)("");
-  const timer = (0, import_react8.useRef)(null);
-  (0, import_react8.useEffect)(() => {
+  const [query, setQuery] = (0, import_react7.useState)("");
+  const [status, setStatus] = (0, import_react7.useState)("active");
+  const [selectedDay, setSelectedDay] = (0, import_react7.useState)();
+  const [debouncedQuery, setDebouncedQuery] = (0, import_react7.useState)("");
+  const timer = (0, import_react7.useRef)(null);
+  (0, import_react7.useEffect)(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setDebouncedQuery(query), 150);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [query]);
-  const scopedItems = (0, import_react8.useMemo)(() => {
+  const scopedItems = (0, import_react7.useMemo)(() => {
     const byStatus = status === "all" ? items : items.filter((item) => item.status === status);
     return selectedDay ? byStatus.filter((item) => dayKeyFromIso(item.createdAt) === selectedDay) : byStatus;
   }, [items, selectedDay, status]);
-  const fuse = (0, import_react8.useMemo)(
+  const fuse = (0, import_react7.useMemo)(
     () => new Fuse(scopedItems, {
       keys: ["title", "bodyMarkdown", "tags", "path", "type"],
       threshold: 0.35,
@@ -12616,7 +12699,7 @@ function useCaptureFilters(items) {
     }),
     [scopedItems]
   );
-  const filteredItems = (0, import_react8.useMemo)(() => {
+  const filteredItems = (0, import_react7.useMemo)(() => {
     const trimmed = debouncedQuery.trim();
     if (!trimmed) return scopedItems;
     return fuse.search(trimmed).map((result) => result.item);
@@ -12633,11 +12716,11 @@ function useCaptureFilters(items) {
 }
 
 // src/ui/hooks/useCaptureItems.ts
-var import_react9 = __toESM(require_react());
+var import_react8 = __toESM(require_react());
 function useCaptureItems(plugin) {
-  const [items, setItems] = (0, import_react9.useState)(() => plugin.index.getItems());
-  const [isRebuilding, setIsRebuilding] = (0, import_react9.useState)(() => plugin.index.isRebuilding());
-  (0, import_react9.useEffect)(() => {
+  const [items, setItems] = (0, import_react8.useState)(() => plugin.index.getItems());
+  const [isRebuilding, setIsRebuilding] = (0, import_react8.useState)(() => plugin.index.isRebuilding());
+  (0, import_react8.useEffect)(() => {
     setItems(plugin.index.getItems());
     setIsRebuilding(plugin.index.isRebuilding());
     return plugin.index.subscribe(() => {
@@ -12649,11 +12732,11 @@ function useCaptureItems(plugin) {
 }
 
 // src/ui/hooks/useSavedQueries.ts
-var import_react10 = __toESM(require_react());
+var import_react9 = __toESM(require_react());
 function useSavedQueries(plugin) {
-  const [savedQueries, setSavedQueries] = (0, import_react10.useState)(() => plugin.settings.savedQueries);
-  const [savedQueryId, setSavedQueryId] = (0, import_react10.useState)("");
-  const [savedQueryName, setSavedQueryName] = (0, import_react10.useState)("");
+  const [savedQueries, setSavedQueries] = (0, import_react9.useState)(() => plugin.settings.savedQueries);
+  const [savedQueryId, setSavedQueryId] = (0, import_react9.useState)("");
+  const [savedQueryName, setSavedQueryName] = (0, import_react9.useState)("");
   async function save(name, filter) {
     const saved = await plugin.saveQuery(name, filter);
     setSavedQueries([...plugin.settings.savedQueries]);
@@ -12678,13 +12761,13 @@ function useSavedQueries(plugin) {
 }
 
 // src/ui/hooks/useSelection.ts
-var import_react11 = __toESM(require_react());
+var import_react10 = __toESM(require_react());
 function useSelection(plugin, items) {
-  const [selectedIds, setSelectedIds] = (0, import_react11.useState)(() => /* @__PURE__ */ new Set());
-  (0, import_react11.useEffect)(() => {
+  const [selectedIds, setSelectedIds] = (0, import_react10.useState)(() => /* @__PURE__ */ new Set());
+  (0, import_react10.useEffect)(() => {
     plugin.setSelectedCaptureIds([...selectedIds]);
   }, [plugin, selectedIds]);
-  (0, import_react11.useEffect)(() => {
+  (0, import_react10.useEffect)(() => {
     const valid = new Set(items.map((item) => item.id));
     setSelectedIds((current) => {
       let changed = false;
@@ -12696,8 +12779,8 @@ function useSelection(plugin, items) {
       return changed ? next : current;
     });
   }, [items]);
-  const has = (0, import_react11.useCallback)((id) => selectedIds.has(id), [selectedIds]);
-  const toggle = (0, import_react11.useCallback)((id) => {
+  const has = (0, import_react10.useCallback)((id) => selectedIds.has(id), [selectedIds]);
+  const toggle = (0, import_react10.useCallback)((id) => {
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -12705,8 +12788,8 @@ function useSelection(plugin, items) {
       return next;
     });
   }, []);
-  const clear = (0, import_react11.useCallback)(() => setSelectedIds(/* @__PURE__ */ new Set()), []);
-  const toggleAll = (0, import_react11.useCallback)((visibleIds) => {
+  const clear = (0, import_react10.useCallback)(() => setSelectedIds(/* @__PURE__ */ new Set()), []);
+  const toggleAll = (0, import_react10.useCallback)((visibleIds) => {
     setSelectedIds((current) => {
       const allSelected = visibleIds.length > 0 && visibleIds.every((id) => current.has(id));
       const next = new Set(current);
@@ -12718,7 +12801,7 @@ function useSelection(plugin, items) {
       return next;
     });
   }, []);
-  const selectedItems = (0, import_react11.useMemo)(
+  const selectedItems = (0, import_react10.useMemo)(
     () => items.filter((item) => selectedIds.has(item.id)),
     [items, selectedIds]
   );
@@ -12726,14 +12809,14 @@ function useSelection(plugin, items) {
 }
 
 // src/ui/hooks/useTableSort.ts
-var import_react12 = __toESM(require_react());
+var import_react11 = __toESM(require_react());
 function useTableSort(filteredItems) {
-  const [sortKey, setSortKey] = (0, import_react12.useState)("createdAt");
-  const [sortDirection, setSortDirection] = (0, import_react12.useState)("desc");
-  const [visibleColumns, setVisibleColumns] = (0, import_react12.useState)(
+  const [sortKey, setSortKey] = (0, import_react11.useState)("createdAt");
+  const [sortDirection, setSortDirection] = (0, import_react11.useState)("desc");
+  const [visibleColumns, setVisibleColumns] = (0, import_react11.useState)(
     () => /* @__PURE__ */ new Set(["time", "type", "status", "title", "tags"])
   );
-  const tableItems = (0, import_react12.useMemo)(
+  const tableItems = (0, import_react11.useMemo)(
     () => sortTableItems(filteredItems, sortKey, sortDirection),
     [filteredItems, sortDirection, sortKey]
   );
@@ -12759,23 +12842,49 @@ function useTableSort(filteredItems) {
   return { sortKey, sortDirection, visibleColumns, tableItems, onSort, toggleColumn };
 }
 
+// src/ui/editSession.ts
+function createEditSession(capture, now = /* @__PURE__ */ new Date()) {
+  return {
+    captureId: capture.id,
+    originalBody: capture.bodyMarkdown,
+    draftBody: capture.bodyMarkdown,
+    startedAt: now.toISOString()
+  };
+}
+function updateEditDraft(session, draftBody) {
+  return {
+    ...session,
+    draftBody
+  };
+}
+function isEditDirty(session) {
+  return Boolean(session && session.draftBody !== session.originalBody);
+}
+function hasEditConflict(session, capture) {
+  return Boolean(session && session.captureId === capture.id && capture.bodyMarkdown !== session.originalBody);
+}
+function canDiscardEditWithoutConfirm(session) {
+  return !isEditDirty(session);
+}
+
 // src/ui/LocalCaptureApp.tsx
 var import_jsx_runtime12 = __toESM(require_jsx_runtime());
 function LocalCaptureApp({ plugin }) {
   const { items, isRebuilding } = useCaptureItems(plugin);
-  const [draft, setDraft] = (0, import_react13.useState)("");
-  const [draftType, setDraftType] = (0, import_react13.useState)(plugin.settings.defaultType);
-  const [viewMode, setViewMode] = (0, import_react13.useState)("timeline");
-  const [advancedOpen, setAdvancedOpen] = (0, import_react13.useState)(() => plugin.settings.advancedFiltersOpen);
+  const [draft, setDraft] = (0, import_react12.useState)("");
+  const [draftType, setDraftType] = (0, import_react12.useState)(plugin.settings.defaultType);
+  const [viewMode, setViewMode] = (0, import_react12.useState)("timeline");
+  const [advancedOpen, setAdvancedOpen] = (0, import_react12.useState)(() => plugin.settings.advancedFiltersOpen);
+  const [editSession, setEditSession] = (0, import_react12.useState)(null);
   const filters = useCaptureFilters(items);
   const { filteredItems, query, status, selectedDay } = filters;
   const selection = useSelection(plugin, items);
   const tableSort = useTableSort(filteredItems);
   const savedQueriesState = useSavedQueries(plugin);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     plugin.setActiveDayKey(selectedDay);
   }, [plugin, selectedDay]);
-  const tagCounts = (0, import_react13.useMemo)(() => {
+  const tagCounts = (0, import_react12.useMemo)(() => {
     const counts = /* @__PURE__ */ new Map();
     for (const item of items) {
       if (item.status === "deleted") continue;
@@ -12817,6 +12926,42 @@ function LocalCaptureApp({ plugin }) {
     await plugin.captureService.restoreMany(selection.selectedItems);
     selection.clear();
   }
+  async function confirmDiscardEdit() {
+    if (canDiscardEditWithoutConfirm(editSession)) return true;
+    return confirmAction(plugin, {
+      title: "\u653E\u5F03\u672A\u4FDD\u5B58\u4FEE\u6539\uFF1F",
+      message: "\u5F53\u524D\u8BB0\u5F55\u6709\u672A\u4FDD\u5B58\u7684\u7F16\u8F91\u5185\u5BB9\uFF0C\u653E\u5F03\u540E\u65E0\u6CD5\u6062\u590D\u3002",
+      confirmText: "\u653E\u5F03\u4FEE\u6539",
+      destructive: true
+    });
+  }
+  async function startEdit(item) {
+    if (editSession?.captureId === item.id) return;
+    if (!await confirmDiscardEdit()) return;
+    setEditSession(createEditSession(item));
+  }
+  function changeEditBody(body) {
+    setEditSession((current) => current ? updateEditDraft(current, body) : current);
+  }
+  async function cancelEdit() {
+    if (!await confirmDiscardEdit()) return;
+    setEditSession(null);
+  }
+  async function saveEdit(item) {
+    if (!editSession || editSession.captureId !== item.id) return;
+    const conflict = hasEditConflict(editSession, item);
+    if (conflict) {
+      const confirmed = await confirmAction(plugin, {
+        title: "\u8986\u76D6\u5916\u90E8\u66F4\u65B0\uFF1F",
+        message: "\u6E90\u6587\u4EF6\u5DF2\u5728\u7F16\u8F91\u671F\u95F4\u66F4\u65B0\u3002\u7EE7\u7EED\u4FDD\u5B58\u4F1A\u7528\u5F53\u524D\u8349\u7A3F\u8986\u76D6\u6B63\u6587\u3002",
+        confirmText: "\u8986\u76D6\u4FDD\u5B58",
+        destructive: true
+      });
+      if (!confirmed) return;
+    }
+    await plugin.captureService.updateBody(item, editSession.draftBody);
+    setEditSession(null);
+  }
   function applySavedQuery(id) {
     savedQueriesState.setSavedQueryId(id);
     const saved = savedQueriesState.savedQueries.find((savedQuery) => savedQuery.id === id);
@@ -12838,6 +12983,7 @@ function LocalCaptureApp({ plugin }) {
   const listIsEmpty = filteredItems.length === 0;
   const hasNoData = items.length === 0;
   const hasActiveFilter = Boolean(query.trim()) || status !== "active" || Boolean(selectedDay);
+  const editDirty = isEditDirty(editSession);
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "local-capture-app", children: [
     /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
       Composer,
@@ -12899,7 +13045,14 @@ function LocalCaptureApp({ plugin }) {
         plugin,
         items: filteredItems,
         isSelected: selection.has,
-        onToggleSelected: selection.toggle
+        onToggleSelected: selection.toggle,
+        editSession,
+        onStartEdit: (item) => plugin.runAction("\u7F16\u8F91\u8BB0\u5F55", () => startEdit(item)),
+        onEditBodyChange: changeEditBody,
+        onSaveEdit: (item) => plugin.runAction("\u4FDD\u5B58\u7F16\u8F91", () => saveEdit(item)),
+        onCancelEdit: () => plugin.runAction("\u53D6\u6D88\u7F16\u8F91", () => cancelEdit()),
+        isEditDirty: editDirty,
+        hasEditConflict: (item) => hasEditConflict(editSession, item)
       }
     ) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
       /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(TableColumnControls, { visibleColumns: tableSort.visibleColumns, onToggle: tableSort.toggleColumn }),
@@ -12922,7 +13075,7 @@ function LocalCaptureApp({ plugin }) {
 
 // src/view.tsx
 var import_jsx_runtime13 = __toESM(require_jsx_runtime());
-var LocalCaptureView = class extends import_obsidian8.ItemView {
+var LocalCaptureView = class extends import_obsidian9.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
@@ -12967,8 +13120,8 @@ var LocalCaptureView = class extends import_obsidian8.ItemView {
 };
 
 // src/modals/BatchTagModal.ts
-var import_obsidian9 = require("obsidian");
-var BatchTagModal = class extends import_obsidian9.Modal {
+var import_obsidian10 = require("obsidian");
+var BatchTagModal = class extends import_obsidian10.Modal {
   constructor(plugin, captures) {
     super(plugin.app);
     this.plugin = plugin;
@@ -12985,7 +13138,7 @@ var BatchTagModal = class extends import_obsidian9.Modal {
       text: `\u5C06\u5904\u7406 ${this.captures.length} \u6761\u8BB0\u5F55\u3002\u6807\u7B7E\u53EF\u7528\u7A7A\u683C\u3001\u9017\u53F7\u6216\u4E2D\u6587\u9017\u53F7\u5206\u9694\uFF1B\u79FB\u9664\u548C\u66FF\u6362\u4E0D\u4F1A\u6539\u5199\u6B63\u6587\u91CC\u7684 #\u6807\u7B7E\u3002`,
       cls: "local-capture-modal-desc"
     });
-    new import_obsidian9.Setting(contentEl).setName("\u5904\u7406\u65B9\u5F0F").addDropdown((dropdown) => {
+    new import_obsidian10.Setting(contentEl).setName("\u5904\u7406\u65B9\u5F0F").addDropdown((dropdown) => {
       dropdown.addOption("add", "\u6DFB\u52A0\u6807\u7B7E").addOption("remove", "\u79FB\u9664\u6807\u7B7E").addOption("replace", "\u66FF\u6362\u4E3A\u8FD9\u4E9B\u6807\u7B7E").setValue(this.mode).onChange((value) => {
         this.mode = value;
       });
@@ -12999,7 +13152,7 @@ var BatchTagModal = class extends import_obsidian9.Modal {
     input.addEventListener("input", () => {
       this.tagsText = input.value;
     });
-    new import_obsidian9.Setting(contentEl).addButton((button) => {
+    new import_obsidian10.Setting(contentEl).addButton((button) => {
       button.setButtonText("\u5E94\u7528").setCta().onClick(() => this.plugin.runAction("\u6279\u91CF\u5904\u7406\u6807\u7B7E", () => this.submit()));
     }).addButton((button) => {
       button.setButtonText("\u53D6\u6D88").onClick(() => this.close());
@@ -13018,8 +13171,8 @@ function parseTagsText(value) {
 }
 
 // src/modals/BatchTypeModal.ts
-var import_obsidian10 = require("obsidian");
-var BatchTypeModal = class extends import_obsidian10.Modal {
+var import_obsidian11 = require("obsidian");
+var BatchTypeModal = class extends import_obsidian11.Modal {
   constructor(plugin, captures) {
     super(plugin.app);
     this.plugin = plugin;
@@ -13035,12 +13188,12 @@ var BatchTypeModal = class extends import_obsidian10.Modal {
       text: `\u5C06\u4FEE\u6539 ${this.captures.length} \u6761\u8BB0\u5F55\u3002\u5207\u6362\u4E3A\u4EFB\u52A1\u65F6\uFF0C\u672A\u5B8C\u6210\u72B6\u6001\u4F1A\u9ED8\u8BA4\u8BBE\u4E3A\u5F85\u529E\u3002`,
       cls: "local-capture-modal-desc"
     });
-    new import_obsidian10.Setting(contentEl).setName("\u76EE\u6807\u7C7B\u578B").addDropdown((dropdown) => {
+    new import_obsidian11.Setting(contentEl).setName("\u76EE\u6807\u7C7B\u578B").addDropdown((dropdown) => {
       dropdown.addOption("note", "\u7B14\u8BB0").addOption("task", "\u4EFB\u52A1").setValue(this.type).onChange((value) => {
         this.type = value;
       });
     });
-    new import_obsidian10.Setting(contentEl).addButton((button) => {
+    new import_obsidian11.Setting(contentEl).addButton((button) => {
       button.setButtonText("\u5E94\u7528").setCta().onClick(() => this.plugin.runAction("\u6279\u91CF\u4FEE\u6539\u7C7B\u578B", () => this.submit()));
     }).addButton((button) => {
       button.setButtonText("\u53D6\u6D88").onClick(() => this.close());
@@ -13053,8 +13206,8 @@ var BatchTypeModal = class extends import_obsidian10.Modal {
 };
 
 // src/modals/TagManagementModal.ts
-var import_obsidian11 = require("obsidian");
-var TagManagementModal = class extends import_obsidian11.Modal {
+var import_obsidian12 = require("obsidian");
+var TagManagementModal = class extends import_obsidian12.Modal {
   constructor(plugin) {
     super(plugin.app);
     this.plugin = plugin;
@@ -13086,7 +13239,7 @@ var TagManagementModal = class extends import_obsidian11.Modal {
       color.addEventListener("change", () => {
         this.plugin.runAction("\u8BBE\u7F6E\u6807\u7B7E\u989C\u8272", () => this.plugin.setTagColor(tag, color.value));
       });
-      new import_obsidian11.Setting(row).addText((text) => {
+      new import_obsidian12.Setting(row).addText((text) => {
         text.setPlaceholder("\u65B0\u6807\u7B7E\u540D");
         text.inputEl.addClass("local-capture-tag-rename-input");
       }).addButton((button) => {
@@ -13123,7 +13276,7 @@ function collectTagCounts(plugin) {
 }
 
 // src/main.ts
-var LocalCapturePlugin = class extends import_obsidian12.Plugin {
+var LocalCapturePlugin = class extends import_obsidian13.Plugin {
   constructor() {
     super(...arguments);
     this.selectedCaptureIds = /* @__PURE__ */ new Set();
@@ -13196,7 +13349,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   }
   async pickTargetAndSend(captures) {
     if (captures.length === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
+      new import_obsidian13.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
       return;
     }
     new TargetFileSuggestModal(this, async (target) => {
@@ -13206,14 +13359,14 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   }
   openBatchTagModal(captures) {
     if (captures.length === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
+      new import_obsidian13.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
       return;
     }
     new BatchTagModal(this, captures).open();
   }
   openBatchTypeModal(captures) {
     if (captures.length === 0) {
-      new import_obsidian12.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
+      new import_obsidian13.Notice("\u8BF7\u5148\u9009\u62E9\u81F3\u5C11\u4E00\u6761\u8BB0\u5F55");
       return;
     }
     new BatchTypeModal(this, captures).open();
@@ -13239,7 +13392,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
     };
     this.settings.savedQueries = [...this.settings.savedQueries, savedQuery];
     await this.saveSettings();
-    new import_obsidian12.Notice(`\u5DF2\u4FDD\u5B58\u67E5\u8BE2\uFF1A${savedQuery.name}`);
+    new import_obsidian13.Notice(`\u5DF2\u4FDD\u5B58\u67E5\u8BE2\uFF1A${savedQuery.name}`);
     return savedQuery;
   }
   async deleteQuery(id) {
@@ -13247,7 +13400,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
     this.settings.savedQueries = this.settings.savedQueries.filter((query) => query.id !== id);
     await this.saveSettings();
     if (deleted) {
-      new import_obsidian12.Notice(`\u5DF2\u5220\u9664\u67E5\u8BE2\uFF1A${deleted.name}`);
+      new import_obsidian13.Notice(`\u5DF2\u5220\u9664\u67E5\u8BE2\uFF1A${deleted.name}`);
     }
   }
   async generateSummaryForActiveDay() {
@@ -13260,8 +13413,8 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   }
   async openCaptureFile(capture) {
     const file = this.app.vault.getAbstractFileByPath(capture.path);
-    if (!(file instanceof import_obsidian12.TFile)) {
-      new import_obsidian12.Notice(`\u627E\u4E0D\u5230\u8BB0\u5F55\u6587\u4EF6\uFF1A${capture.path}`);
+    if (!(file instanceof import_obsidian13.TFile)) {
+      new import_obsidian13.Notice(`\u627E\u4E0D\u5230\u8BB0\u5F55\u6587\u4EF6\uFF1A${capture.path}`);
       return;
     }
     await this.app.workspace.getLeaf(false).openFile(file);
@@ -13396,7 +13549,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
     const diagnostics = await this.captureService.runDiagnostics();
     console.info("Local Capture diagnostics", diagnostics);
     const issueText = diagnostics.issues.length > 0 ? `\uFF0C\u53D1\u73B0 ${diagnostics.issues.length} \u4E2A\u95EE\u9898` : "\uFF0C\u672A\u53D1\u73B0\u95EE\u9898";
-    new import_obsidian12.Notice(`Local Capture \u8BCA\u65AD\u5B8C\u6210\uFF1A${diagnostics.captureCount} \u6761\u8BB0\u5F55${issueText}`);
+    new import_obsidian13.Notice(`Local Capture \u8BCA\u65AD\u5B8C\u6210\uFF1A${diagnostics.captureCount} \u6761\u8BB0\u5F55${issueText}`);
   }
   registerUriCapture() {
     this.registerObsidianProtocolHandler(PLUGIN_ID, async (params) => {
@@ -13405,7 +13558,7 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
         const type = normalizeCaptureType(firstValue(params.type), this.settings.defaultType);
         const url = firstValue(params.url) ?? firstValue(params.source_url);
         if (!bodyMarkdown.trim()) {
-          new import_obsidian12.Notice("URI \u6355\u83B7\u7F3A\u5C11 text\u3001body \u6216 content \u53C2\u6570");
+          new import_obsidian13.Notice("URI \u6355\u83B7\u7F3A\u5C11 text\u3001body \u6216 content \u53C2\u6570");
           return;
         }
         await this.captureService.createCapture({
@@ -13425,12 +13578,12 @@ var LocalCapturePlugin = class extends import_obsidian12.Plugin {
   async createFromClipboard() {
     const clipboard = navigator.clipboard;
     if (!clipboard?.readText) {
-      new import_obsidian12.Notice("\u5F53\u524D\u73AF\u5883\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F");
+      new import_obsidian13.Notice("\u5F53\u524D\u73AF\u5883\u65E0\u6CD5\u8BFB\u53D6\u526A\u8D34\u677F");
       return;
     }
     const text = await clipboard.readText();
     if (!text.trim()) {
-      new import_obsidian12.Notice("\u526A\u8D34\u677F\u4E3A\u7A7A");
+      new import_obsidian13.Notice("\u526A\u8D34\u677F\u4E3A\u7A7A");
       return;
     }
     await this.captureService.createCapture({

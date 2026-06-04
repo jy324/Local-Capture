@@ -46,6 +46,29 @@
   min-height: 140px;
 }
 
+.local-capture-edit-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.local-capture-edit-alert {
+  padding: 6px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  color: var(--text-warning);
+  background: color-mix(in srgb, var(--text-warning) 12%, var(--background-primary));
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+}
+
+.local-capture-edit-status {
+  padding: 4px 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+}
+
 .local-capture-modal-textarea {
   min-height: 180px;
 }
@@ -413,6 +436,13 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 2px;
+  max-width: min(100%, 204px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.local-capture-card-actions::-webkit-scrollbar {
+  display: none;
 }
 
 .local-capture-icon-button:hover,
@@ -661,9 +691,7 @@
   }
 
   .local-capture-card-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    max-width: 150px;
+    justify-content: flex-start;
   }
 
   .local-capture-card-footer {

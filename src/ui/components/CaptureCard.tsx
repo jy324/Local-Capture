@@ -12,7 +12,7 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import { JSX, useEffect, useState } from "react";
+import { JSX, KeyboardEvent } from "react";
 import type LocalCapturePlugin from "../../main";
 import { CaptureItem } from "../../types";
 import { formatDisplayDateTime, formatDisplayTime } from "../../utils/dates";
@@ -25,29 +25,49 @@ interface CaptureCardProps {
   item: CaptureItem;
   selected: boolean;
   onToggleSelected: () => void;
+  editing: boolean;
+  editBody: string;
+  editDirty: boolean;
+  editConflict: boolean;
+  onStartEdit: () => void;
+  onEditBodyChange: (body: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
 }
 
-export function CaptureCard({ plugin, item, selected, onToggleSelected }: CaptureCardProps): JSX.Element {
-  const [editing, setEditing] = useState(false);
-  const [body, setBody] = useState(item.bodyMarkdown);
-
-  useEffect(() => {
-    if (!editing) {
-      setBody(item.bodyMarkdown);
-    }
-  }, [editing, item.bodyMarkdown]);
-
-  async function saveEdit(): Promise<void> {
-    await plugin.captureService.updateBody(item, body);
-    setEditing(false);
-  }
-
+export function CaptureCard({
+  plugin,
+  item,
+  selected,
+  onToggleSelected,
+  editing,
+  editBody,
+  editDirty,
+  editConflict,
+  onStartEdit,
+  onEditBodyChange,
+  onSaveEdit,
+  onCancelEdit
+}: CaptureCardProps): JSX.Element {
   async function toggleTask(): Promise<void> {
     await plugin.captureService.setTaskStatus(item, item.taskStatus === "done" ? "todo" : "done");
   }
 
   async function restore(): Promise<void> {
     await plugin.captureService.setStatus(item, "active");
+  }
+
+  function onEditKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      onSaveEdit();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onCancelEdit();
+    }
   }
 
   return (
@@ -81,15 +101,15 @@ export function CaptureCard({ plugin, item, selected, onToggleSelected }: Captur
           </IconButton>
           {editing ? (
             <>
-              <IconButton title="保存编辑" onClick={saveEdit}>
+              <IconButton title="保存编辑" onClick={onSaveEdit}>
                 <Check size={16} />
               </IconButton>
-              <IconButton title="取消编辑" onClick={() => setEditing(false)}>
+              <IconButton title="取消编辑" onClick={onCancelEdit}>
                 <X size={16} />
               </IconButton>
             </>
           ) : (
-            <IconButton title="编辑" onClick={() => setEditing(true)}>
+            <IconButton title="编辑" onClick={onStartEdit}>
               <Pencil size={16} />
             </IconButton>
           )}
@@ -118,11 +138,23 @@ export function CaptureCard({ plugin, item, selected, onToggleSelected }: Captur
 
       <div className="local-capture-card-body">
         {editing ? (
-          <textarea
-            className="local-capture-edit"
-            value={body}
-            onChange={(event) => setBody(event.currentTarget.value)}
-          />
+          <div className="local-capture-edit-wrap">
+            {editConflict ? (
+              <div className="local-capture-edit-alert" role="status">
+                源文件已更新，保存会覆盖当前正文。
+              </div>
+            ) : editDirty ? (
+              <div className="local-capture-edit-status" role="status">
+                未保存
+              </div>
+            ) : null}
+            <textarea
+              className="local-capture-edit"
+              value={editBody}
+              onChange={(event) => onEditBodyChange(event.currentTarget.value)}
+              onKeyDown={onEditKeyDown}
+            />
+          </div>
         ) : (
           <MarkdownPreview markdown={item.bodyMarkdown} sourcePath={item.path} plugin={plugin} />
         )}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.3
+
+- Added edit draft protection so card edits keep a single active draft session while the view re-renders, filters, or virtualized rows unmount.
+- Added confirmation modals for discarding unsaved card edits and overwriting a capture body when the source file changed during editing.
+- Added keyboard support for card editing with Ctrl/Cmd+Enter to save and Esc to cancel through the same confirmation flow.
+- Improved narrow sidebar card edit layout and added ob-dev QA screenshots for edit draft protection.
+
 ## 0.9.2
 
 - Added guarded error handling for commands, view actions, modals, and table/batch controls so failed async actions show user-facing notices.

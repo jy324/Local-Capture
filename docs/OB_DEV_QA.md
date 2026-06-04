@@ -6,7 +6,7 @@ This document records the Local Capture QA pass performed against the real Obsid
 
 - Vault: `ob-dev`
 - Vault path: `D:\Documents\Projects\ob-dev`
-- Plugin version: `0.9.2`
+- Plugin version: `0.9.3`
 - Test date: `2026-06-04` (Asia/Shanghai)
 - Install command: `npm run qa:vault -- "D:\Documents\Projects\ob-dev"`
 
@@ -29,7 +29,7 @@ plugins filter=community versions format=json
 [
   {
     "id": "local-capture",
-      "version": "0.9.2"
+      "version": "0.9.3"
   }
 ]
 ```
@@ -58,7 +58,7 @@ dev:errors
 No errors captured.
 ```
 
-Note: the vault plugin manifest at `.obsidian/plugins/local-capture/manifest.json` also reports `0.9.2`. The CLI plugin list JSON was used as the version source because the single-plugin detail command can return stale cached metadata immediately after reload.
+Note: the vault plugin manifest at `.obsidian/plugins/local-capture/manifest.json` also reports `0.9.3`. The CLI plugin list JSON was used as the version source because the single-plugin detail command can return stale cached metadata immediately after reload.
 
 ## Feature Screenshots
 
@@ -78,6 +78,18 @@ Note: the vault plugin manifest at `.obsidian/plugins/local-capture/manifest.jso
 
 ![Local Capture tag management in ob-dev](qa-screenshots/ob-dev-tag-management.png)
 
+### Edit Draft Protection
+
+![Local Capture edit draft protection in ob-dev](qa-screenshots/ob-dev-edit-draft.png)
+
+### Unsaved Edit Confirmation
+
+![Local Capture unsaved edit confirmation in ob-dev](qa-screenshots/ob-dev-edit-confirm.png)
+
+### Narrow Edit Layout
+
+![Local Capture narrow edit layout in ob-dev](qa-screenshots/ob-dev-edit-narrow.png)
+
 ## Tested Feature Coverage
 
 - Plugin install into `.obsidian/plugins/local-capture`
@@ -94,8 +106,11 @@ Note: the vault plugin manifest at `.obsidian/plugins/local-capture/manifest.jso
 - Daily Summary command and generated managed summary block
 - Table view switch, row rendering, column visibility controls, and table sorting UI
 - Tag management command and modal with counts, color inputs, rename, and delete actions
+- Card edit draft protection with a single active edit session and dirty status indicator
+- Unsaved edit discard confirmation modal with Simplified Chinese copy and no runtime errors
+- Narrow/mobile edit layout with stable textarea and horizontally scrollable card actions
 - Batch actions are visible for selected captures
-- No captured runtime errors after opening the view, switching views, opening tag management, and running CLI checks
+- No captured runtime errors after opening the view, switching views, opening tag management, editing a card, opening the discard confirmation modal, testing mobile emulation, and running CLI checks
 
 ## Vault Fixtures
 
@@ -119,6 +134,6 @@ Daily Summary content was verified through the generated fixture and includes th
 
 ## Notes
 
-- The screenshots are real Obsidian screenshots captured through `dev:screenshot`.
+- The screenshots are real Obsidian screenshots captured through `dev:screenshot`; the narrow edit screenshot used Obsidian CLI mobile emulation.
 - The test did not mutate existing user notes outside the generated `Captures/` and `Local Capture QA/` fixture paths.
-- The plugin reported no captured runtime errors after the v0.9.2 QA pass.
+- The plugin reported no captured runtime errors after the v0.9.3 QA pass, including the edit draft protection checks.
