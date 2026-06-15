@@ -1,7 +1,7 @@
 {
   "id": "local-capture",
   "name": "Local Capture",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "minAppVersion": "1.6.0",
   "description": "Markdown 原生、本地优先的快速记录与时间线插件。",
   "author": "",

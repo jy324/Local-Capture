@@ -70,7 +70,7 @@ function AdvancedFiltersBody({
   onClearDay
 }: AdvancedFiltersProps): JSX.Element {
   return (
-    <div className="local-capture-advanced-body">
+    <>
       <div className="local-capture-saved-query-row">
         <select value={savedQueryId} onChange={(event) => onApplySavedQuery(event.currentTarget.value)}>
           <option value="">保存查询</option>
@@ -123,6 +123,6 @@ function AdvancedFiltersBody({
           <X size={14} aria-hidden="true" />
         </button>
       ) : null}
-    </div>
+    </>
   );
 }

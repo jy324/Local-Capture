@@ -6,3 +6,9 @@ data.json
 coverage/
 dist/
 .vite/
+
+# Local machine QA configuration
+qa.local.ps1
+.local/
+.env.local
+.env.*.local

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.5
+
+- Fixed advanced filters expand/collapse animation that was unstable due to a duplicate `.local-capture-advanced-body` class collision between the animation wrapper and the inner content root.
+- Added micro type badges to capture cards (笔记 outlined muted, 任务 outlined accent) replacing flat gray labels.
+- Added status badge for non-active captures (归档/删除) with subtle background.
+- Reshaped footer tags into outlined pills with 12px radius and tag-color border support.
+- Removed duplicate timestamp from card footer; footer is now hidden entirely when a capture has no tags.
+- Added inset shadow + slightly stronger border to composer/edit textareas so the input has a visible boundary even when unfocused.
+- Added vertical divider between status tabs and view tabs in the filter row.
+- Grouped BatchBar actions into safe/destructive segments with a divider, destructive hover color for the delete action, and a right-aligned close button.
+
 ## 0.9.4
 
 - Added micro-interaction transitions to all interactive elements (icon buttons, tabs, tag pills, heatmap cells) with GPU-composited transforms.

@@ -26,25 +26,34 @@ export function BatchBar({
     <div className="local-capture-batchbar">
       <span className="local-capture-batchbar-count">{selectedItems.length}</span>
       <span className="local-capture-batchbar-label">条</span>
-      <button type="button" title="发送到文件" onClick={() => plugin.runAction("发送到文件", () => plugin.pickTargetAndSend(selectedItems))}>
-        <Send size={15} aria-hidden="true" />
-      </button>
-      <button type="button" title="批量标签" onClick={() => plugin.runAction("批量标签", () => plugin.openBatchTagModal(selectedItems))}>
-        <Tags size={15} aria-hidden="true" />
-      </button>
-      <button type="button" title="批量类型" onClick={() => plugin.runAction("批量类型", () => plugin.openBatchTypeModal(selectedItems))}>
-        <ListTodo size={15} aria-hidden="true" />
-      </button>
-      <button type="button" title="归档" onClick={() => plugin.runAction("归档", onArchive)}>
-        <Archive size={15} aria-hidden="true" />
-      </button>
-      <button type="button" title="恢复" onClick={() => plugin.runAction("恢复", onRestore)}>
-        <RotateCcw size={15} aria-hidden="true" />
-      </button>
-      <button type="button" title="删除" onClick={() => plugin.runAction("删除", onDelete)}>
-        <Trash2 size={15} aria-hidden="true" />
-      </button>
-      <button type="button" title="取消选择" onClick={onClear}>
+
+      <div className="local-capture-batchbar-group">
+        <button type="button" title="发送到文件" onClick={() => plugin.runAction("发送到文件", () => plugin.pickTargetAndSend(selectedItems))}>
+          <Send size={15} aria-hidden="true" />
+        </button>
+        <button type="button" title="批量标签" onClick={() => plugin.runAction("批量标签", () => plugin.openBatchTagModal(selectedItems))}>
+          <Tags size={15} aria-hidden="true" />
+        </button>
+        <button type="button" title="批量类型" onClick={() => plugin.runAction("批量类型", () => plugin.openBatchTypeModal(selectedItems))}>
+          <ListTodo size={15} aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="local-capture-batchbar-divider" aria-hidden="true" />
+
+      <div className="local-capture-batchbar-group">
+        <button type="button" title="归档" onClick={() => plugin.runAction("归档", onArchive)}>
+          <Archive size={15} aria-hidden="true" />
+        </button>
+        <button type="button" title="恢复" onClick={() => plugin.runAction("恢复", onRestore)}>
+          <RotateCcw size={15} aria-hidden="true" />
+        </button>
+        <button type="button" className="local-capture-destructive" title="删除" onClick={() => plugin.runAction("删除", onDelete)}>
+          <Trash2 size={15} aria-hidden="true" />
+        </button>
+      </div>
+
+      <button type="button" className="local-capture-batchbar-close" title="取消选择" onClick={onClear}>
         <X size={15} aria-hidden="true" />
       </button>
     </div>

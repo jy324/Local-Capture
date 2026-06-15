@@ -15,9 +15,9 @@ import {
 import { JSX, KeyboardEvent } from "react";
 import type LocalCapturePlugin from "../../main";
 import { CaptureItem } from "../../types";
-import { formatDisplayDateTime, formatDisplayTime } from "../../utils/dates";
+import { formatDisplayDateTime } from "../../utils/dates";
 import { IconButton } from "../shared/IconButton";
-import { statusText } from "../shared/formatters";
+import { statusText, tagColorStyle } from "../shared/formatters";
 import { MarkdownPreview } from "../MarkdownPreview";
 
 interface CaptureCardProps {
@@ -80,8 +80,12 @@ export function CaptureCard({
 
         <div className="local-capture-card-meta">
           <time>{formatDisplayDateTime(item.createdAt)}</time>
-          <span>{item.type === "task" ? "任务" : "笔记"}</span>
-          {item.status !== "active" ? <span>{statusText(item.status)}</span> : null}
+          <span className={`local-capture-type-badge local-capture-type-${item.type}`}>
+            {item.type === "task" ? "任务" : "笔记"}
+          </span>
+          {item.status !== "active" ? (
+            <span className="local-capture-status-badge">{statusText(item.status)}</span>
+          ) : null}
         </div>
 
         <div className="local-capture-card-actions">
@@ -160,14 +164,21 @@ export function CaptureCard({
         )}
       </div>
 
-      <footer className="local-capture-card-footer">
-        <span>{formatDisplayTime(item.createdAt)}</span>
-        <div className="local-capture-tags">
-          {item.tags.map((tag) => (
-            <span key={tag}>#{tag}</span>
-          ))}
-        </div>
-      </footer>
+      {item.tags.length > 0 ? (
+        <footer className="local-capture-card-footer">
+          <div className="local-capture-tags">
+            {item.tags.map((tag) => (
+              <span
+                key={tag}
+                className="local-capture-tag-pill"
+                style={tagColorStyle(plugin.settings.tagColors[tag])}
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+        </footer>
+      ) : null}
     </article>
   );
 }

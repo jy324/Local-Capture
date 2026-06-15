@@ -67,6 +67,76 @@ For UI/CSS changes:
 - Update `docs/OB_DEV_QA.md` with the QA date, plugin version, commands, coverage, notes, and screenshots.
 - Visually inspect screenshots for blank views, overlap, clipped text, layout shifts, and stale UI states.
 
+### Obsidian CLI Screenshot Flow
+
+When the local Obsidian CLI exposes developer commands, capture UI evidence from the real Obsidian/Electron runtime instead of a browser. Use environment variables for machine-specific paths:
+
+```powershell
+$env:OBSIDIAN_CLI = "<path-to-Obsidian.com>"
+$env:OBSIDIAN_QA_VAULT_NAME = "ob-dev"
+$env:OBSIDIAN_QA_VAULT = "<path-to-vault>"
+```
+
+Install the current build into the QA vault first:
+
+```powershell
+npm run qa:vault -- "$env:OBSIDIAN_QA_VAULT"
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME plugin:reload id=local-capture
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME command id=local-capture:open-local-capture
+```
+
+Use `eval` only to operate plugin-owned UI for QA setup, such as opening the Local Capture view, clicking plugin buttons, focusing textareas, or creating a temporary unsaved draft. Keep scripts narrow and avoid mutating user notes unless the QA case explicitly requires it.
+
+Example for entering card edit mode and capturing the result:
+
+```powershell
+$code = @'
+new Promise((resolve) => {
+  const editButton = document.querySelector(".local-capture-card [aria-label='编辑']");
+  if (!editButton) {
+    resolve("missing edit button");
+    return;
+  }
+
+  editButton.click();
+  setTimeout(() => {
+    const textarea = document.querySelector(".local-capture-edit");
+    resolve({
+      editing: Boolean(textarea),
+      dirtyStatus: document.querySelector(".local-capture-edit-status")?.textContent ?? null
+    });
+  }, 500);
+})
+'@
+
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME eval code=$code
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME dev:screenshot path="docs/qa-screenshots/ob-dev-edit-draft.png"
+```
+
+For confirmation modals, trigger the plugin action, confirm the expected modal text with `eval` or `dev:dom`, then take the screenshot before closing the modal:
+
+```powershell
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME dev:dom selector=".modal-content p" text
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME dev:screenshot path="docs/qa-screenshots/ob-dev-edit-confirm.png"
+```
+
+For narrow/mobile checks, enable mobile emulation, reopen the plugin view after the reload, take the screenshot, then disable emulation:
+
+```powershell
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME dev:mobile on
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME command id=local-capture:open-local-capture
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME dev:screenshot path="docs/qa-screenshots/ob-dev-edit-narrow.png"
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME dev:mobile off
+```
+
+After screenshots, check runtime errors:
+
+```powershell
+& "$env:OBSIDIAN_CLI" vault=$env:OBSIDIAN_QA_VAULT_NAME dev:errors
+```
+
+If a screenshot appears stale, first confirm the DOM state with `dev:dom` or `eval`, then capture to a temporary unique filename and visually inspect it before replacing the documented screenshot.
+
 ## Mobile Basics
 
 - Confirm the sidebar view opens on mobile.

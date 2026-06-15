@@ -8817,7 +8817,7 @@ function AdvancedFiltersBody({
   onSelectDay,
   onClearDay
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-advanced-body", children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "local-capture-saved-query-row", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("select", { value: savedQueryId, onChange: (event) => onApplySavedQuery(event.currentTarget.value), children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "", children: "\u4FDD\u5B58\u67E5\u8BE2" }),
@@ -8879,13 +8879,18 @@ function BatchBar({
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "local-capture-batchbar", children: [
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "local-capture-batchbar-count", children: selectedItems.length }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "local-capture-batchbar-label", children: "\u6761" }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.runAction("\u53D1\u9001\u5230\u6587\u4EF6", () => plugin.pickTargetAndSend(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Send, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u6807\u7B7E", onClick: () => plugin.runAction("\u6279\u91CF\u6807\u7B7E", () => plugin.openBatchTagModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Tags, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u7C7B\u578B", onClick: () => plugin.runAction("\u6279\u91CF\u7C7B\u578B", () => plugin.openBatchTypeModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ListTodo, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5F52\u6863", onClick: () => plugin.runAction("\u5F52\u6863", onArchive), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Archive, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6062\u590D", onClick: () => plugin.runAction("\u6062\u590D", onRestore), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotateCcw, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5220\u9664", onClick: () => plugin.runAction("\u5220\u9664", onDelete), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Trash2, { size: 15, "aria-hidden": "true" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D6\u6D88\u9009\u62E9", onClick: onClear, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(X, { size: 15, "aria-hidden": "true" }) })
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "local-capture-batchbar-group", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.runAction("\u53D1\u9001\u5230\u6587\u4EF6", () => plugin.pickTargetAndSend(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Send, { size: 15, "aria-hidden": "true" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u6807\u7B7E", onClick: () => plugin.runAction("\u6279\u91CF\u6807\u7B7E", () => plugin.openBatchTagModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Tags, { size: 15, "aria-hidden": "true" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u7C7B\u578B", onClick: () => plugin.runAction("\u6279\u91CF\u7C7B\u578B", () => plugin.openBatchTypeModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ListTodo, { size: 15, "aria-hidden": "true" }) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "local-capture-batchbar-divider", "aria-hidden": "true" }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "local-capture-batchbar-group", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u5F52\u6863", onClick: () => plugin.runAction("\u5F52\u6863", onArchive), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Archive, { size: 15, "aria-hidden": "true" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6062\u590D", onClick: () => plugin.runAction("\u6062\u590D", onRestore), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotateCcw, { size: 15, "aria-hidden": "true" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "local-capture-destructive", title: "\u5220\u9664", onClick: () => plugin.runAction("\u5220\u9664", onDelete), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Trash2, { size: 15, "aria-hidden": "true" }) })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", className: "local-capture-batchbar-close", title: "\u53D6\u6D88\u9009\u62E9", onClick: onClear, children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(X, { size: 15, "aria-hidden": "true" }) })
   ] });
 }
 
@@ -10555,8 +10560,8 @@ function CaptureCard({
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "local-capture-card-meta", children: [
         /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("time", { children: formatDisplayDateTime(item.createdAt) }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }),
-        item.status !== "active" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: statusText(item.status) }) : null
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: `local-capture-type-badge local-capture-type-${item.type}`, children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }),
+        item.status !== "active" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "local-capture-status-badge", children: statusText(item.status) }) : null
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "local-capture-card-actions", children: [
         item.type === "task" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
@@ -10597,13 +10602,18 @@ function CaptureCard({
         }
       )
     ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MarkdownPreview, { markdown: item.bodyMarkdown, sourcePath: item.path, plugin }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("footer", { className: "local-capture-card-footer", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: formatDisplayTime(item.createdAt) }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-tags", children: item.tags.map((tag) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { children: [
-        "#",
-        tag
-      ] }, tag)) })
-    ] })
+    item.tags.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("footer", { className: "local-capture-card-footer", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-tags", children: item.tags.map((tag) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+      "span",
+      {
+        className: "local-capture-tag-pill",
+        style: tagColorStyle(plugin.settings.tagColors[tag]),
+        children: [
+          "#",
+          tag
+        ]
+      },
+      tag
+    )) }) }) : null
   ] });
 }
 
