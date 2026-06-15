@@ -8357,7 +8357,7 @@ var import_obsidian9 = require("obsidian");
 var import_client = __toESM(require_client());
 
 // src/ui/LocalCaptureApp.tsx
-var import_react12 = __toESM(require_react());
+var import_react13 = __toESM(require_react());
 
 // src/modals/ConfirmActionModal.ts
 var import_obsidian6 = require("obsidian");
@@ -8514,6 +8514,20 @@ var Circle = createLucideIcon("Circle", [
   ["circle", { cx: "12", cy: "12", r: "10", key: "1mglay" }]
 ]);
 
+// node_modules/lucide-react/dist/esm/icons/columns-3.js
+var Columns3 = createLucideIcon("Columns3", [
+  ["rect", { width: "18", height: "18", x: "3", y: "3", rx: "2", key: "afitv7" }],
+  ["path", { d: "M9 3v18", key: "fh3hqa" }],
+  ["path", { d: "M15 3v18", key: "14nvp0" }]
+]);
+
+// node_modules/lucide-react/dist/esm/icons/ellipsis.js
+var Ellipsis = createLucideIcon("Ellipsis", [
+  ["circle", { cx: "12", cy: "12", r: "1", key: "41hilf" }],
+  ["circle", { cx: "19", cy: "12", r: "1", key: "1wjl8i" }],
+  ["circle", { cx: "5", cy: "12", r: "1", key: "1pcz8c" }]
+]);
+
 // node_modules/lucide-react/dist/esm/icons/external-link.js
 var ExternalLink = createLucideIcon("ExternalLink", [
   ["path", { d: "M15 3h6v6", key: "1q9fwt" }],
@@ -8635,17 +8649,24 @@ var Send = createLucideIcon("Send", [
   ["path", { d: "m21.854 2.147-10.94 10.939", key: "12cjpa" }]
 ]);
 
-// node_modules/lucide-react/dist/esm/icons/sliders-horizontal.js
-var SlidersHorizontal = createLucideIcon("SlidersHorizontal", [
-  ["line", { x1: "21", x2: "14", y1: "4", y2: "4", key: "obuewd" }],
-  ["line", { x1: "10", x2: "3", y1: "4", y2: "4", key: "1q6298" }],
-  ["line", { x1: "21", x2: "12", y1: "12", y2: "12", key: "1iu8h1" }],
-  ["line", { x1: "8", x2: "3", y1: "12", y2: "12", key: "ntss68" }],
-  ["line", { x1: "21", x2: "16", y1: "20", y2: "20", key: "14d8ph" }],
-  ["line", { x1: "12", x2: "3", y1: "20", y2: "20", key: "m0wm8r" }],
-  ["line", { x1: "14", x2: "14", y1: "2", y2: "6", key: "14e1ph" }],
-  ["line", { x1: "8", x2: "8", y1: "10", y2: "14", key: "1i6ji0" }],
-  ["line", { x1: "16", x2: "16", y1: "18", y2: "22", key: "1lctlv" }]
+// node_modules/lucide-react/dist/esm/icons/square-dashed-mouse-pointer.js
+var SquareDashedMousePointer = createLucideIcon("SquareDashedMousePointer", [
+  [
+    "path",
+    {
+      d: "M12.034 12.681a.498.498 0 0 1 .647-.647l9 3.5a.5.5 0 0 1-.033.943l-3.444 1.068a1 1 0 0 0-.66.66l-1.067 3.443a.5.5 0 0 1-.943.033z",
+      key: "xwnzip"
+    }
+  ],
+  ["path", { d: "M5 3a2 2 0 0 0-2 2", key: "y57alp" }],
+  ["path", { d: "M19 3a2 2 0 0 1 2 2", key: "18rm91" }],
+  ["path", { d: "M5 21a2 2 0 0 1-2-2", key: "sbafld" }],
+  ["path", { d: "M9 3h1", key: "1yesri" }],
+  ["path", { d: "M9 21h2", key: "1qve2z" }],
+  ["path", { d: "M14 3h1", key: "1ec4yj" }],
+  ["path", { d: "M3 9v1", key: "1r0deq" }],
+  ["path", { d: "M21 9v2", key: "p14lih" }],
+  ["path", { d: "M3 14v1", key: "vnatye" }]
 ]);
 
 // node_modules/lucide-react/dist/esm/icons/star.js
@@ -8870,6 +8891,9 @@ var import_jsx_runtime3 = __toESM(require_jsx_runtime());
 function BatchBar({
   plugin,
   selectedItems,
+  visibleCount,
+  allVisibleSelected,
+  onToggleAllVisible,
   onArchive,
   onRestore,
   onDelete,
@@ -8879,6 +8903,20 @@ function BatchBar({
   return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "local-capture-batchbar", children: [
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "local-capture-batchbar-count", children: selectedItems.length }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { className: "local-capture-batchbar-label", children: "\u6761" }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+      "button",
+      {
+        type: "button",
+        className: "local-capture-batchbar-selectall",
+        title: allVisibleSelected ? `\u53D6\u6D88\u9009\u62E9\u5F53\u524D ${visibleCount} \u6761` : `\u9009\u62E9\u5F53\u524D ${visibleCount} \u6761`,
+        onClick: onToggleAllVisible,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(SquareDashedMousePointer, { size: 15, "aria-hidden": "true" }),
+          allVisibleSelected ? "\u53D6\u6D88" : "\u5168\u9009"
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className: "local-capture-batchbar-divider", "aria-hidden": "true" }),
     /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { className: "local-capture-batchbar-group", children: [
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.runAction("\u53D1\u9001\u5230\u6587\u4EF6", () => plugin.pickTargetAndSend(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Send, { size: 15, "aria-hidden": "true" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("button", { type: "button", title: "\u6279\u91CF\u6807\u7B7E", onClick: () => plugin.runAction("\u6279\u91CF\u6807\u7B7E", () => plugin.openBatchTagModal(selectedItems)), children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(Tags, { size: 15, "aria-hidden": "true" }) }),
@@ -8895,7 +8933,7 @@ function BatchBar({
 }
 
 // src/ui/components/CaptureTable.tsx
-var import_react4 = __toESM(require_react());
+var import_react5 = __toESM(require_react());
 
 // node_modules/@tanstack/react-virtual/dist/esm/index.js
 var React = __toESM(require_react(), 1);
@@ -10198,24 +10236,112 @@ function useVirtualizer(options) {
   });
 }
 
-// src/ui/components/CaptureTable.tsx
+// src/ui/shared/OverflowMenu.tsx
+var import_react4 = __toESM(require_react());
+var import_react_dom2 = __toESM(require_react_dom());
 var import_jsx_runtime4 = __toESM(require_jsx_runtime());
+function OverflowMenu({
+  title = "\u66F4\u591A",
+  align = "right",
+  trigger,
+  children
+}) {
+  const [open, setOpen] = (0, import_react4.useState)(false);
+  const [panelStyle, setPanelStyle] = (0, import_react4.useState)({});
+  const wrapRef = (0, import_react4.useRef)(null);
+  const panelRef = (0, import_react4.useRef)(null);
+  (0, import_react4.useLayoutEffect)(() => {
+    if (!open) return;
+    const trigger2 = wrapRef.current?.querySelector("button");
+    if (!trigger2) return;
+    const rect = trigger2.getBoundingClientRect();
+    const style = { top: rect.bottom + 4 };
+    if (align === "right") style.left = rect.right;
+    else style.left = rect.left;
+    setPanelStyle(style);
+  }, [open, align]);
+  (0, import_react4.useEffect)(() => {
+    if (!open) return;
+    function handlePointer(event) {
+      const wrap = wrapRef.current;
+      const panel = panelRef.current;
+      const target = event.target;
+      if (wrap?.contains(target) || panel?.contains(target)) return;
+      setOpen(false);
+    }
+    function handleKey(event) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("pointerdown", handlePointer, true);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointer, true);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+  function onPanelClick(event) {
+    const target = event.target;
+    if (target.closest("button, [role='menuitem'], a, input")) {
+      setOpen(false);
+    }
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "local-capture-overflow", ref: wrapRef, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      "button",
+      {
+        type: "button",
+        className: "local-capture-icon-button",
+        title,
+        "aria-label": title,
+        "aria-expanded": open,
+        "aria-haspopup": "menu",
+        onClick: () => setOpen((current) => !current),
+        children: trigger ?? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Ellipsis, { size: 16, "aria-hidden": "true" })
+      }
+    ),
+    open ? (0, import_react_dom2.createPortal)(
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        "div",
+        {
+          ref: panelRef,
+          className: `local-capture-overflow-panel align-${align}`,
+          role: "menu",
+          style: panelStyle,
+          onClick: onPanelClick,
+          children
+        }
+      ),
+      document.body
+    ) : null
+  ] });
+}
+
+// src/ui/components/CaptureTable.tsx
+var import_jsx_runtime5 = __toESM(require_jsx_runtime());
 var ROW_HEIGHT = 38;
 function TableColumnControls({
   visibleColumns,
   onToggle
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className: "local-capture-column-controls", "aria-label": "\u8868\u683C\u5217\u663E\u793A", children: tableColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("label", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-      "input",
-      {
-        type: "checkbox",
-        checked: visibleColumns.has(column.key),
-        onChange: () => onToggle(column.key)
-      }
-    ),
-    column.label
-  ] }, column.key)) });
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+    OverflowMenu,
+    {
+      title: "\u8868\u683C\u5217\u663E\u793A",
+      align: "right",
+      trigger: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Columns3, { size: 16, "aria-hidden": "true" }),
+      children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className: "local-capture-column-popover", "aria-label": "\u8868\u683C\u5217\u663E\u793A", children: tableColumns.map((column) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "input",
+          {
+            type: "checkbox",
+            checked: visibleColumns.has(column.key),
+            onChange: () => onToggle(column.key)
+          }
+        ),
+        column.label
+      ] }, column.key)) })
+    }
+  );
 }
 function CaptureTable({
   plugin,
@@ -10227,7 +10353,7 @@ function CaptureTable({
   sortDirection,
   onSort
 }) {
-  const parentRef = (0, import_react4.useRef)(null);
+  const parentRef = (0, import_react5.useRef)(null);
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
@@ -10239,22 +10365,22 @@ function CaptureTable({
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
   const paddingBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
   const colCount = visibleColumns.size + 2;
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { ref: parentRef, className: "local-capture-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("table", { className: "local-capture-table", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("tr", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("th", { "aria-label": "\u9009\u62E9" }),
-      visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u65F6\u95F4", sortKey: "createdAt", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u7C7B\u578B", sortKey: "type", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u72B6\u6001", sortKey: "status", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u6807\u9898", sortKey: "title", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(SortableHeader, { label: "\u6807\u7B7E", sortKey: "tags", activeKey: sortKey, direction: sortDirection, onSort }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("th", { "aria-label": "\u64CD\u4F5C" })
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { ref: parentRef, className: "local-capture-table-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("table", { className: "local-capture-table", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("tr", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { "aria-label": "\u9009\u62E9" }),
+      visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SortableHeader, { label: "\u65F6\u95F4", sortKey: "createdAt", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SortableHeader, { label: "\u7C7B\u578B", sortKey: "type", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SortableHeader, { label: "\u72B6\u6001", sortKey: "status", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SortableHeader, { label: "\u6807\u9898", sortKey: "title", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(SortableHeader, { label: "\u6807\u7B7E", sortKey: "tags", activeKey: sortKey, direction: sortDirection, onSort }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { "aria-label": "\u64CD\u4F5C" })
     ] }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("tbody", { children: [
-      paddingTop > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("tr", { "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { colSpan: colCount, style: { height: `${paddingTop}px`, padding: 0, border: 0 } }) }) : null,
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("tbody", { children: [
+      paddingTop > 0 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("tr", { "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { colSpan: colCount, style: { height: `${paddingTop}px`, padding: 0, border: 0 } }) }) : null,
       virtualRows.map((virtualRow) => {
         const item = items[virtualRow.index];
-        return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("tr", { className: isSelected(item.id) ? "is-selected" : "", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("tr", { className: isSelected(item.id) ? "is-selected" : "", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
             "input",
             {
               type: "checkbox",
@@ -10262,15 +10388,15 @@ function CaptureTable({
               onChange: () => onToggleSelected(item.id)
             }
           ) }),
-          visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: formatDisplayDateTime(item.createdAt) }) : null,
-          visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }) : null,
-          visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: statusText(item.status) }) : null,
-          visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", onClick: () => plugin.runAction("\u6253\u5F00\u6E90\u6587\u4EF6", () => plugin.openCaptureFile(item)), children: item.title ?? "\u672A\u547D\u540D\u8BB0\u5F55" }) }) : null,
-          visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: item.tags.map((tag) => `#${tag}`).join(" ") }) : null,
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.runAction("\u53D1\u9001\u5230\u6587\u4EF6", () => plugin.pickTargetAndSend([item])), children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Send, { size: 14, "aria-hidden": "true" }) }) })
+          visibleColumns.has("time") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: formatDisplayDateTime(item.createdAt) }) : null,
+          visibleColumns.has("type") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }) : null,
+          visibleColumns.has("status") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: statusText(item.status) }) : null,
+          visibleColumns.has("title") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", onClick: () => plugin.runAction("\u6253\u5F00\u6E90\u6587\u4EF6", () => plugin.openCaptureFile(item)), children: item.title ?? "\u672A\u547D\u540D\u8BB0\u5F55" }) }) : null,
+          visibleColumns.has("tags") ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: item.tags.map((tag) => `#${tag}`).join(" ") }) : null,
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("button", { type: "button", title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.runAction("\u53D1\u9001\u5230\u6587\u4EF6", () => plugin.pickTargetAndSend([item])), children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Send, { size: 14, "aria-hidden": "true" }) }) })
         ] }, item.id);
       }),
-      paddingBottom > 0 ? /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("tr", { "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("td", { colSpan: colCount, style: { height: `${paddingBottom}px`, padding: 0, border: 0 } }) }) : null
+      paddingBottom > 0 ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("tr", { "aria-hidden": "true", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("td", { colSpan: colCount, style: { height: `${paddingBottom}px`, padding: 0, border: 0 } }) }) : null
     ] })
   ] }) });
 }
@@ -10282,14 +10408,14 @@ function SortableHeader({
   onSort
 }) {
   const suffix = activeKey === sortKey ? direction === "asc" ? " \u2191" : " \u2193" : "";
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("th", { children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("button", { type: "button", onClick: () => onSort(sortKey), children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("th", { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("button", { type: "button", onClick: () => onSort(sortKey), children: [
     label,
     suffix
   ] }) });
 }
 
 // src/ui/components/Composer.tsx
-var import_jsx_runtime5 = __toESM(require_jsx_runtime());
+var import_jsx_runtime6 = __toESM(require_jsx_runtime());
 function Composer({
   draft,
   draftType,
@@ -10303,8 +10429,8 @@ function Composer({
       onSubmit();
     }
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("section", { className: "local-capture-composer", "aria-label": "\u5FEB\u901F\u8BB0\u5F55", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { className: "local-capture-composer", "aria-label": "\u5FEB\u901F\u8BB0\u5F55", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
       "textarea",
       {
         className: "local-capture-input",
@@ -10314,9 +10440,9 @@ function Composer({
         onKeyDown
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "local-capture-composer-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className: "local-capture-segmented", role: "group", "aria-label": "\u8BB0\u5F55\u7C7B\u578B", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-composer-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-segmented", role: "group", "aria-label": "\u8BB0\u5F55\u7C7B\u578B", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
           "button",
           {
             type: "button",
@@ -10325,7 +10451,7 @@ function Composer({
             children: "\u7B14\u8BB0"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
           "button",
           {
             type: "button",
@@ -10335,7 +10461,7 @@ function Composer({
           }
         )
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
         "button",
         {
           type: "button",
@@ -10344,7 +10470,7 @@ function Composer({
           disabled: !draft.trim(),
           title: "\u4FDD\u5B58\u8BB0\u5F55\uFF08Ctrl/\u2318 + Enter\uFF09",
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(Save, { size: 15, "aria-hidden": "true" }),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Save, { size: 15, "aria-hidden": "true" }),
             "\u4FDD\u5B58"
           ]
         }
@@ -10354,56 +10480,55 @@ function Composer({
 }
 
 // src/ui/components/EmptyState.tsx
-var import_jsx_runtime6 = __toESM(require_jsx_runtime());
+var import_jsx_runtime7 = __toESM(require_jsx_runtime());
 function EmptyState({ variant, captureFolder, onClearFilters }) {
   if (variant === "loading") {
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-empty", "aria-busy": "true", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { className: "local-capture-spinner", "aria-hidden": "true" }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "\u6B63\u5728\u52A0\u8F7D\u8BB0\u5F55\u2026" })
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-empty", "aria-busy": "true", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className: "local-capture-spinner", "aria-hidden": "true" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u6B63\u5728\u52A0\u8F7D\u8BB0\u5F55\u2026" })
     ] });
   }
   if (variant === "first-run") {
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-empty local-capture-empty-onboarding", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Inbox, { size: 36, "aria-hidden": "true" }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { className: "local-capture-empty-title", children: "\u8FD8\u6CA1\u6709\u4EFB\u4F55\u8BB0\u5F55" }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("p", { className: "local-capture-empty-desc", children: [
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-empty local-capture-empty-onboarding", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Inbox, { size: 36, "aria-hidden": "true" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { className: "local-capture-empty-title", children: "\u8FD8\u6CA1\u6709\u4EFB\u4F55\u8BB0\u5F55" }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("p", { className: "local-capture-empty-desc", children: [
         "\u5728\u4E0A\u65B9\u8F93\u5165\u6846\u5199\u4E0B\u60F3\u6CD5\uFF0C\u6309",
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("kbd", { children: "Ctrl/\u2318 + Enter" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("kbd", { children: "Ctrl/\u2318 + Enter" }),
         "\u5373\u53EF\u4FDD\u5B58\u3002\u8BB0\u5F55\u4F1A\u4EE5 Markdown \u6587\u4EF6\u5B58\u5230",
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("code", { children: captureFolder ?? "Captures" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("code", { children: captureFolder ?? "Captures" }),
         "\u76EE\u5F55\uFF0C\u53EF\u968F\u65F6\u5728 Obsidian \u4E2D\u76F4\u63A5\u6253\u5F00\u3002"
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("p", { className: "local-capture-empty-desc", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("p", { className: "local-capture-empty-desc", children: [
         "\u4E5F\u53EF\u4EE5\u4ECE\u547D\u4EE4\u9762\u677F\u8FD0\u884C ",
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: "\u65B0\u5EFA\u5FEB\u901F\u8BB0\u5F55" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: "\u65B0\u5EFA\u5FEB\u901F\u8BB0\u5F55" }),
         " \u6216 ",
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("strong", { children: "\u4ECE\u526A\u8D34\u677F\u521B\u5EFA\u8BB0\u5F55" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("strong", { children: "\u4ECE\u526A\u8D34\u677F\u521B\u5EFA\u8BB0\u5F55" }),
         "\u3002"
       ] })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className: "local-capture-empty", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(FileInput, { size: 28, "aria-hidden": "true" }),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "\u6CA1\u6709\u5339\u914D\u7684\u8BB0\u5F55" }),
-    onClearFilters ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("button", { type: "button", className: "local-capture-empty-action", onClick: onClearFilters, children: "\u6E05\u9664\u7B5B\u9009" }) : null
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-empty", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(FileInput, { size: 28, "aria-hidden": "true" }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { children: "\u6CA1\u6709\u5339\u914D\u7684\u8BB0\u5F55" }),
+    onClearFilters ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", className: "local-capture-empty-action", onClick: onClearFilters, children: "\u6E05\u9664\u7B5B\u9009" }) : null
   ] });
 }
 
 // src/ui/components/FilterBar.tsx
-var import_jsx_runtime7 = __toESM(require_jsx_runtime());
+var import_jsx_runtime8 = __toESM(require_jsx_runtime());
 function FilterBar({
   query,
   onQueryChange,
   status,
   onStatusChange,
   viewMode,
-  onViewModeChange,
-  onSelectVisible
+  onViewModeChange
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("section", { className: "local-capture-tools", "aria-label": "\u7B5B\u9009", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-search", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Search, { size: 15, "aria-hidden": "true" }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("section", { className: "local-capture-tools", "aria-label": "\u7B5B\u9009", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "local-capture-search", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Search, { size: 15, "aria-hidden": "true" }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
         "input",
         {
           value: query,
@@ -10412,15 +10537,15 @@ function FilterBar({
         }
       )
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-tools-row", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-status-tabs", role: "tablist", "aria-label": "\u72B6\u6001\u7B5B\u9009", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusButton, { label: "\u6D3B\u8DC3", value: "active", status, onChange: onStatusChange }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusButton, { label: "\u5F52\u6863", value: "archived", status, onChange: onStatusChange }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusButton, { label: "\u5220\u9664", value: "deleted", status, onChange: onStatusChange }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusButton, { label: "\u5168\u90E8", value: "all", status, onChange: onStatusChange })
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "local-capture-tools-row", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "local-capture-status-tabs", role: "tablist", "aria-label": "\u72B6\u6001\u7B5B\u9009", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(StatusButton, { label: "\u6D3B\u8DC3", value: "active", status, onChange: onStatusChange }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(StatusButton, { label: "\u5F52\u6863", value: "archived", status, onChange: onStatusChange }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(StatusButton, { label: "\u5220\u9664", value: "deleted", status, onChange: onStatusChange }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(StatusButton, { label: "\u5168\u90E8", value: "all", status, onChange: onStatusChange })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className: "local-capture-view-tabs", role: "tablist", "aria-label": "\u89C6\u56FE\u5207\u6362", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className: "local-capture-view-tabs", role: "tablist", "aria-label": "\u89C6\u56FE\u5207\u6362", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
           "button",
           {
             type: "button",
@@ -10428,12 +10553,12 @@ function FilterBar({
             title: "\u65F6\u95F4\u7EBF\u89C6\u56FE",
             onClick: () => onViewModeChange("timeline"),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(List, { size: 14, "aria-hidden": "true" }),
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(List, { size: 14, "aria-hidden": "true" }),
               "\u65F6\u95F4\u7EBF"
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
           "button",
           {
             type: "button",
@@ -10441,34 +10566,21 @@ function FilterBar({
             title: "\u8868\u683C\u89C6\u56FE",
             onClick: () => onViewModeChange("table"),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Table2, { size: 14, "aria-hidden": "true" }),
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Table2, { size: 14, "aria-hidden": "true" }),
               "\u8868\u683C"
             ]
           }
         )
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-        "button",
-        {
-          type: "button",
-          className: "local-capture-select-results",
-          title: "\u9009\u62E9/\u53D6\u6D88\u5F53\u524D\u7ED3\u679C",
-          onClick: onSelectVisible,
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(SlidersHorizontal, { size: 14, "aria-hidden": "true" }),
-            "\u9009\u62E9\u7ED3\u679C"
-          ]
-        }
-      )
+      ] })
     ] })
   ] });
 }
 function StatusButton({ label, value, status, onChange }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { type: "button", className: status === value ? "is-active" : "", onClick: () => onChange(value), children: label });
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { type: "button", className: status === value ? "is-active" : "", onClick: () => onChange(value), children: label });
 }
 
 // src/ui/components/Timeline.tsx
-var import_react6 = __toESM(require_react());
+var import_react7 = __toESM(require_react());
 
 // src/actionErrors.ts
 var import_obsidian7 = require("obsidian");
@@ -10487,9 +10599,9 @@ function runGuardedAction(label, action) {
 }
 
 // src/ui/shared/IconButton.tsx
-var import_jsx_runtime8 = __toESM(require_jsx_runtime());
+var import_jsx_runtime9 = __toESM(require_jsx_runtime());
 function IconButton({ title, children, onClick }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
     "button",
     {
       type: "button",
@@ -10506,21 +10618,21 @@ function IconButton({ title, children, onClick }) {
 
 // src/ui/MarkdownPreview.tsx
 var import_obsidian8 = require("obsidian");
-var import_react5 = __toESM(require_react());
-var import_jsx_runtime9 = __toESM(require_jsx_runtime());
+var import_react6 = __toESM(require_react());
+var import_jsx_runtime10 = __toESM(require_jsx_runtime());
 function MarkdownPreview({ markdown, sourcePath, plugin }) {
-  const ref = (0, import_react5.useRef)(null);
-  (0, import_react5.useEffect)(() => {
+  const ref = (0, import_react6.useRef)(null);
+  (0, import_react6.useEffect)(() => {
     const element = ref.current;
     if (!element) return;
     element.empty();
     void import_obsidian8.MarkdownRenderer.render(plugin.app, markdown, element, sourcePath, plugin);
   }, [markdown, plugin, sourcePath]);
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { ref, className: "local-capture-markdown markdown-rendered" });
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { ref, className: "local-capture-markdown markdown-rendered" });
 }
 
 // src/ui/components/CaptureCard.tsx
-var import_jsx_runtime10 = __toESM(require_jsx_runtime());
+var import_jsx_runtime11 = __toESM(require_jsx_runtime());
 function CaptureCard({
   plugin,
   item,
@@ -10552,47 +10664,75 @@ function CaptureCard({
       onCancelEdit();
     }
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("article", { className: `local-capture-card ${selected ? "is-selected" : ""} status-${item.status}`, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("header", { className: "local-capture-card-header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("label", { className: "local-capture-select", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("input", { type: "checkbox", checked: selected, onChange: onToggleSelected }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", {})
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("article", { className: `local-capture-card ${selected ? "is-selected" : ""} status-${item.status}`, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("header", { className: "local-capture-card-header", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("label", { className: "local-capture-select", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("input", { type: "checkbox", checked: selected, onChange: onToggleSelected }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", {})
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "local-capture-card-meta", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("time", { children: formatDisplayDateTime(item.createdAt) }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: `local-capture-type-badge local-capture-type-${item.type}`, children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }),
-        item.status !== "active" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { className: "local-capture-status-badge", children: statusText(item.status) }) : null
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "local-capture-card-meta", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("time", { children: formatDisplayDateTime(item.createdAt) }),
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: `local-capture-type-badge local-capture-type-${item.type}`, children: item.type === "task" ? "\u4EFB\u52A1" : "\u7B14\u8BB0" }),
+        item.status !== "active" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { className: "local-capture-status-badge", children: statusText(item.status) }) : null
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "local-capture-card-actions", children: [
-        item.type === "task" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "local-capture-card-actions", children: [
+        item.type === "task" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           IconButton,
           {
             title: item.taskStatus === "done" ? "\u6807\u8BB0\u4E3A\u5F85\u529E" : "\u6807\u8BB0\u4E3A\u5B8C\u6210",
             onClick: toggleTask,
-            children: item.taskStatus === "done" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(CircleCheck, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Circle, { size: 16 })
+            children: item.taskStatus === "done" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(CircleCheck, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Circle, { size: 16 })
           }
         ) : null,
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           IconButton,
           {
             title: item.pinned ? "\u53D6\u6D88\u7F6E\u9876" : "\u7F6E\u9876",
             onClick: () => plugin.captureService.setPinned(item, !item.pinned),
-            children: item.pinned ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(PinOff, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Pin, { size: 16 })
+            children: item.pinned ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(PinOff, { size: 16 }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Pin, { size: 16 })
           }
         ),
-        editing ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u4FDD\u5B58\u7F16\u8F91", onClick: onSaveEdit, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Check, { size: 16 }) }),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u53D6\u6D88\u7F16\u8F91", onClick: onCancelEdit, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(X, { size: 16 }) })
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u7F16\u8F91", onClick: onStartEdit, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Pencil, { size: 16 }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u53D1\u9001\u5230\u6587\u4EF6", onClick: () => plugin.pickTargetAndSend([item]), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Send, { size: 16 }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u6253\u5F00\u6E90\u6587\u4EF6", onClick: () => plugin.openCaptureFile(item), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ExternalLink, { size: 16 }) }),
-        item.status === "active" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u5F52\u6863", onClick: () => plugin.captureService.setStatus(item, "archived"), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Archive, { size: 16 }) }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u6062\u590D", onClick: restore, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ArchiveRestore, { size: 16 }) }),
-        item.status !== "deleted" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(IconButton, { title: "\u5220\u9664", onClick: () => plugin.captureService.setStatus(item, "deleted"), children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(Trash2, { size: 16 }) }) : null
+        editing ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconButton, { title: "\u4FDD\u5B58\u7F16\u8F91", onClick: onSaveEdit, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Check, { size: 16 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconButton, { title: "\u53D6\u6D88\u7F16\u8F91", onClick: onCancelEdit, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(X, { size: 16 }) })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(IconButton, { title: "\u7F16\u8F91", onClick: onStartEdit, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Pencil, { size: 16 }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(OverflowMenu, { title: "\u66F4\u591A\u64CD\u4F5C", align: "right", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { type: "button", role: "menuitem", onClick: () => plugin.pickTargetAndSend([item]), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Send, { size: 14, "aria-hidden": "true" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u53D1\u9001\u5230\u6587\u4EF6" })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { type: "button", role: "menuitem", onClick: () => plugin.openCaptureFile(item), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ExternalLink, { size: 14, "aria-hidden": "true" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u6253\u5F00\u6E90\u6587\u4EF6" })
+            ] }),
+            item.status === "active" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { type: "button", role: "menuitem", onClick: () => plugin.captureService.setStatus(item, "archived"), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Archive, { size: 14, "aria-hidden": "true" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u5F52\u6863" })
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("button", { type: "button", role: "menuitem", onClick: restore, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ArchiveRestore, { size: 14, "aria-hidden": "true" }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u6062\u590D" })
+            ] }),
+            item.status !== "deleted" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+              "button",
+              {
+                type: "button",
+                role: "menuitem",
+                className: "local-capture-destructive",
+                onClick: () => plugin.captureService.setStatus(item, "deleted"),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Trash2, { size: 14, "aria-hidden": "true" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { children: "\u5220\u9664" })
+                ]
+              }
+            ) : null
+          ] })
+        ] })
       ] })
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-card-body", children: editing ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className: "local-capture-edit-wrap", children: [
-      editConflict ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-edit-alert", role: "status", children: "\u6E90\u6587\u4EF6\u5DF2\u66F4\u65B0\uFF0C\u4FDD\u5B58\u4F1A\u8986\u76D6\u5F53\u524D\u6B63\u6587\u3002" }) : editDirty ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-edit-status", role: "status", children: "\u672A\u4FDD\u5B58" }) : null,
-      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "local-capture-card-body", children: editing ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { className: "local-capture-edit-wrap", children: [
+      editConflict ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "local-capture-edit-alert", role: "status", children: "\u6E90\u6587\u4EF6\u5DF2\u66F4\u65B0\uFF0C\u4FDD\u5B58\u4F1A\u8986\u76D6\u5F53\u524D\u6B63\u6587\u3002" }) : editDirty ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "local-capture-edit-status", role: "status", children: "\u672A\u4FDD\u5B58" }) : null,
+      /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
         "textarea",
         {
           className: "local-capture-edit",
@@ -10601,8 +10741,8 @@ function CaptureCard({
           onKeyDown: onEditKeyDown
         }
       )
-    ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(MarkdownPreview, { markdown: item.bodyMarkdown, sourcePath: item.path, plugin }) }),
-    item.tags.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("footer", { className: "local-capture-card-footer", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className: "local-capture-tags", children: item.tags.map((tag) => /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(MarkdownPreview, { markdown: item.bodyMarkdown, sourcePath: item.path, plugin }) }),
+    item.tags.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("footer", { className: "local-capture-card-footer", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { className: "local-capture-tags", children: item.tags.map((tag) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
       "span",
       {
         className: "local-capture-tag-pill",
@@ -10618,7 +10758,7 @@ function CaptureCard({
 }
 
 // src/ui/components/Timeline.tsx
-var import_jsx_runtime11 = __toESM(require_jsx_runtime());
+var import_jsx_runtime12 = __toESM(require_jsx_runtime());
 function Timeline({
   plugin,
   items,
@@ -10632,14 +10772,14 @@ function Timeline({
   isEditDirty: isEditDirty2,
   hasEditConflict: hasEditConflict2
 }) {
-  const parentRef = (0, import_react6.useRef)(null);
+  const parentRef = (0, import_react7.useRef)(null);
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 220,
     overscan: 8
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { ref: parentRef, className: "local-capture-timeline", children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { ref: parentRef, className: "local-capture-timeline", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
     "div",
     {
       className: "local-capture-virtual-space",
@@ -10648,7 +10788,7 @@ function Timeline({
       },
       children: virtualizer.getVirtualItems().map((virtualItem) => {
         const item = items[virtualItem.index];
-        return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
           "div",
           {
             className: "local-capture-virtual-row",
@@ -10657,7 +10797,7 @@ function Timeline({
             style: {
               transform: `translateY(${virtualItem.start}px)`
             },
-            children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+            children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
               CaptureCard,
               {
                 plugin,
@@ -12681,25 +12821,25 @@ Fuse.use = function(...plugins) {
 };
 
 // src/ui/hooks/useCaptureFilters.ts
-var import_react7 = __toESM(require_react());
+var import_react8 = __toESM(require_react());
 function useCaptureFilters(items) {
-  const [query, setQuery] = (0, import_react7.useState)("");
-  const [status, setStatus] = (0, import_react7.useState)("active");
-  const [selectedDay, setSelectedDay] = (0, import_react7.useState)();
-  const [debouncedQuery, setDebouncedQuery] = (0, import_react7.useState)("");
-  const timer = (0, import_react7.useRef)(null);
-  (0, import_react7.useEffect)(() => {
+  const [query, setQuery] = (0, import_react8.useState)("");
+  const [status, setStatus] = (0, import_react8.useState)("active");
+  const [selectedDay, setSelectedDay] = (0, import_react8.useState)();
+  const [debouncedQuery, setDebouncedQuery] = (0, import_react8.useState)("");
+  const timer = (0, import_react8.useRef)(null);
+  (0, import_react8.useEffect)(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setDebouncedQuery(query), 150);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [query]);
-  const scopedItems = (0, import_react7.useMemo)(() => {
+  const scopedItems = (0, import_react8.useMemo)(() => {
     const byStatus = status === "all" ? items : items.filter((item) => item.status === status);
     return selectedDay ? byStatus.filter((item) => dayKeyFromIso(item.createdAt) === selectedDay) : byStatus;
   }, [items, selectedDay, status]);
-  const fuse = (0, import_react7.useMemo)(
+  const fuse = (0, import_react8.useMemo)(
     () => new Fuse(scopedItems, {
       keys: ["title", "bodyMarkdown", "tags", "path", "type"],
       threshold: 0.35,
@@ -12707,7 +12847,7 @@ function useCaptureFilters(items) {
     }),
     [scopedItems]
   );
-  const filteredItems = (0, import_react7.useMemo)(() => {
+  const filteredItems = (0, import_react8.useMemo)(() => {
     const trimmed = debouncedQuery.trim();
     if (!trimmed) return scopedItems;
     return fuse.search(trimmed).map((result) => result.item);
@@ -12724,11 +12864,11 @@ function useCaptureFilters(items) {
 }
 
 // src/ui/hooks/useCaptureItems.ts
-var import_react8 = __toESM(require_react());
+var import_react9 = __toESM(require_react());
 function useCaptureItems(plugin) {
-  const [items, setItems] = (0, import_react8.useState)(() => plugin.index.getItems());
-  const [isRebuilding, setIsRebuilding] = (0, import_react8.useState)(() => plugin.index.isRebuilding());
-  (0, import_react8.useEffect)(() => {
+  const [items, setItems] = (0, import_react9.useState)(() => plugin.index.getItems());
+  const [isRebuilding, setIsRebuilding] = (0, import_react9.useState)(() => plugin.index.isRebuilding());
+  (0, import_react9.useEffect)(() => {
     setItems(plugin.index.getItems());
     setIsRebuilding(plugin.index.isRebuilding());
     return plugin.index.subscribe(() => {
@@ -12740,11 +12880,11 @@ function useCaptureItems(plugin) {
 }
 
 // src/ui/hooks/useSavedQueries.ts
-var import_react9 = __toESM(require_react());
+var import_react10 = __toESM(require_react());
 function useSavedQueries(plugin) {
-  const [savedQueries, setSavedQueries] = (0, import_react9.useState)(() => plugin.settings.savedQueries);
-  const [savedQueryId, setSavedQueryId] = (0, import_react9.useState)("");
-  const [savedQueryName, setSavedQueryName] = (0, import_react9.useState)("");
+  const [savedQueries, setSavedQueries] = (0, import_react10.useState)(() => plugin.settings.savedQueries);
+  const [savedQueryId, setSavedQueryId] = (0, import_react10.useState)("");
+  const [savedQueryName, setSavedQueryName] = (0, import_react10.useState)("");
   async function save(name, filter) {
     const saved = await plugin.saveQuery(name, filter);
     setSavedQueries([...plugin.settings.savedQueries]);
@@ -12769,13 +12909,13 @@ function useSavedQueries(plugin) {
 }
 
 // src/ui/hooks/useSelection.ts
-var import_react10 = __toESM(require_react());
+var import_react11 = __toESM(require_react());
 function useSelection(plugin, items) {
-  const [selectedIds, setSelectedIds] = (0, import_react10.useState)(() => /* @__PURE__ */ new Set());
-  (0, import_react10.useEffect)(() => {
+  const [selectedIds, setSelectedIds] = (0, import_react11.useState)(() => /* @__PURE__ */ new Set());
+  (0, import_react11.useEffect)(() => {
     plugin.setSelectedCaptureIds([...selectedIds]);
   }, [plugin, selectedIds]);
-  (0, import_react10.useEffect)(() => {
+  (0, import_react11.useEffect)(() => {
     const valid = new Set(items.map((item) => item.id));
     setSelectedIds((current) => {
       let changed = false;
@@ -12787,8 +12927,8 @@ function useSelection(plugin, items) {
       return changed ? next : current;
     });
   }, [items]);
-  const has = (0, import_react10.useCallback)((id) => selectedIds.has(id), [selectedIds]);
-  const toggle = (0, import_react10.useCallback)((id) => {
+  const has = (0, import_react11.useCallback)((id) => selectedIds.has(id), [selectedIds]);
+  const toggle = (0, import_react11.useCallback)((id) => {
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -12796,8 +12936,8 @@ function useSelection(plugin, items) {
       return next;
     });
   }, []);
-  const clear = (0, import_react10.useCallback)(() => setSelectedIds(/* @__PURE__ */ new Set()), []);
-  const toggleAll = (0, import_react10.useCallback)((visibleIds) => {
+  const clear = (0, import_react11.useCallback)(() => setSelectedIds(/* @__PURE__ */ new Set()), []);
+  const toggleAll = (0, import_react11.useCallback)((visibleIds) => {
     setSelectedIds((current) => {
       const allSelected = visibleIds.length > 0 && visibleIds.every((id) => current.has(id));
       const next = new Set(current);
@@ -12809,7 +12949,7 @@ function useSelection(plugin, items) {
       return next;
     });
   }, []);
-  const selectedItems = (0, import_react10.useMemo)(
+  const selectedItems = (0, import_react11.useMemo)(
     () => items.filter((item) => selectedIds.has(item.id)),
     [items, selectedIds]
   );
@@ -12817,14 +12957,14 @@ function useSelection(plugin, items) {
 }
 
 // src/ui/hooks/useTableSort.ts
-var import_react11 = __toESM(require_react());
+var import_react12 = __toESM(require_react());
 function useTableSort(filteredItems) {
-  const [sortKey, setSortKey] = (0, import_react11.useState)("createdAt");
-  const [sortDirection, setSortDirection] = (0, import_react11.useState)("desc");
-  const [visibleColumns, setVisibleColumns] = (0, import_react11.useState)(
+  const [sortKey, setSortKey] = (0, import_react12.useState)("createdAt");
+  const [sortDirection, setSortDirection] = (0, import_react12.useState)("desc");
+  const [visibleColumns, setVisibleColumns] = (0, import_react12.useState)(
     () => /* @__PURE__ */ new Set(["time", "type", "status", "title", "tags"])
   );
-  const tableItems = (0, import_react11.useMemo)(
+  const tableItems = (0, import_react12.useMemo)(
     () => sortTableItems(filteredItems, sortKey, sortDirection),
     [filteredItems, sortDirection, sortKey]
   );
@@ -12876,23 +13016,23 @@ function canDiscardEditWithoutConfirm(session) {
 }
 
 // src/ui/LocalCaptureApp.tsx
-var import_jsx_runtime12 = __toESM(require_jsx_runtime());
+var import_jsx_runtime13 = __toESM(require_jsx_runtime());
 function LocalCaptureApp({ plugin }) {
   const { items, isRebuilding } = useCaptureItems(plugin);
-  const [draft, setDraft] = (0, import_react12.useState)("");
-  const [draftType, setDraftType] = (0, import_react12.useState)(plugin.settings.defaultType);
-  const [viewMode, setViewMode] = (0, import_react12.useState)("timeline");
-  const [advancedOpen, setAdvancedOpen] = (0, import_react12.useState)(() => plugin.settings.advancedFiltersOpen);
-  const [editSession, setEditSession] = (0, import_react12.useState)(null);
+  const [draft, setDraft] = (0, import_react13.useState)("");
+  const [draftType, setDraftType] = (0, import_react13.useState)(plugin.settings.defaultType);
+  const [viewMode, setViewMode] = (0, import_react13.useState)("timeline");
+  const [advancedOpen, setAdvancedOpen] = (0, import_react13.useState)(() => plugin.settings.advancedFiltersOpen);
+  const [editSession, setEditSession] = (0, import_react13.useState)(null);
   const filters = useCaptureFilters(items);
   const { filteredItems, query, status, selectedDay } = filters;
   const selection = useSelection(plugin, items);
   const tableSort = useTableSort(filteredItems);
   const savedQueriesState = useSavedQueries(plugin);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     plugin.setActiveDayKey(selectedDay);
   }, [plugin, selectedDay]);
-  const tagCounts = (0, import_react12.useMemo)(() => {
+  const tagCounts = (0, import_react13.useMemo)(() => {
     const counts = /* @__PURE__ */ new Map();
     for (const item of items) {
       if (item.status === "deleted") continue;
@@ -12918,8 +13058,10 @@ function LocalCaptureApp({ plugin }) {
     plugin.settings.advancedFiltersOpen = next;
     await plugin.saveSettings();
   }
+  const visibleItems = viewMode === "table" ? tableSort.tableItems : filteredItems;
+  const visibleIds = (0, import_react13.useMemo)(() => visibleItems.map((item) => item.id), [visibleItems]);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selection.has(id));
   function selectVisible() {
-    const visibleIds = (viewMode === "table" ? tableSort.tableItems : filteredItems).map((item) => item.id);
     selection.toggleAll(visibleIds);
   }
   async function archiveSelected() {
@@ -12992,8 +13134,8 @@ function LocalCaptureApp({ plugin }) {
   const hasNoData = items.length === 0;
   const hasActiveFilter = Boolean(query.trim()) || status !== "active" || Boolean(selectedDay);
   const editDirty = isEditDirty(editSession);
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className: "local-capture-app", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className: "local-capture-app", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
       Composer,
       {
         draft,
@@ -13003,7 +13145,7 @@ function LocalCaptureApp({ plugin }) {
         onSubmit: () => void submitDraft()
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
       FilterBar,
       {
         query,
@@ -13011,11 +13153,10 @@ function LocalCaptureApp({ plugin }) {
         status,
         onStatusChange: filters.setStatus,
         viewMode,
-        onViewModeChange: setViewMode,
-        onSelectVisible: selectVisible
+        onViewModeChange: setViewMode
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
       AdvancedFilters,
       {
         open: advancedOpen,
@@ -13036,18 +13177,21 @@ function LocalCaptureApp({ plugin }) {
         onClearDay: () => filters.setSelectedDay(void 0)
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
       BatchBar,
       {
         plugin,
         selectedItems: selection.selectedItems,
+        visibleCount: visibleIds.length,
+        allVisibleSelected,
+        onToggleAllVisible: selectVisible,
         onArchive: archiveSelected,
         onRestore: restoreSelected,
         onDelete: deleteSelected,
         onClear: selection.clear
       }
     ),
-    isRebuilding && hasNoData ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(EmptyState, { variant: "loading" }) : listIsEmpty ? hasNoData && !hasActiveFilter ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(EmptyState, { variant: "first-run", captureFolder: plugin.settings.captureFolder }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(EmptyState, { variant: "no-match", onClearFilters: hasActiveFilter ? clearFilters : void 0 }) : viewMode === "timeline" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+    isRebuilding && hasNoData ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(EmptyState, { variant: "loading" }) : listIsEmpty ? hasNoData && !hasActiveFilter ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(EmptyState, { variant: "first-run", captureFolder: plugin.settings.captureFolder }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(EmptyState, { variant: "no-match", onClearFilters: hasActiveFilter ? clearFilters : void 0 }) : viewMode === "timeline" ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
       Timeline,
       {
         plugin,
@@ -13062,9 +13206,9 @@ function LocalCaptureApp({ plugin }) {
         isEditDirty: editDirty,
         hasEditConflict: (item) => hasEditConflict(editSession, item)
       }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(TableColumnControls, { visibleColumns: tableSort.visibleColumns, onToggle: tableSort.toggleColumn }),
-      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+    ) : /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(import_jsx_runtime13.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className: "local-capture-table-toolbar", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(TableColumnControls, { visibleColumns: tableSort.visibleColumns, onToggle: tableSort.toggleColumn }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
         CaptureTable,
         {
           plugin,
@@ -13082,7 +13226,7 @@ function LocalCaptureApp({ plugin }) {
 }
 
 // src/view.tsx
-var import_jsx_runtime13 = __toESM(require_jsx_runtime());
+var import_jsx_runtime14 = __toESM(require_jsx_runtime());
 var LocalCaptureView = class extends import_obsidian9.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -13103,7 +13247,7 @@ var LocalCaptureView = class extends import_obsidian9.ItemView {
     container.empty();
     container.addClass("local-capture-host");
     this.root = (0, import_client.createRoot)(container);
-    this.root.render(/* @__PURE__ */ (0, import_jsx_runtime13.jsx)(LocalCaptureApp, { plugin: this.plugin }));
+    this.root.render(/* @__PURE__ */ (0, import_jsx_runtime14.jsx)(LocalCaptureApp, { plugin: this.plugin }));
   }
   addHeaderActions() {
     this.addAction("refresh-cw", "\u91CD\u5EFA\u7D22\u5F15", () => {
@@ -13665,6 +13809,8 @@ lucide-react/dist/esm/icons/check.js:
 lucide-react/dist/esm/icons/chevron-right.js:
 lucide-react/dist/esm/icons/circle-check.js:
 lucide-react/dist/esm/icons/circle.js:
+lucide-react/dist/esm/icons/columns-3.js:
+lucide-react/dist/esm/icons/ellipsis.js:
 lucide-react/dist/esm/icons/external-link.js:
 lucide-react/dist/esm/icons/file-input.js:
 lucide-react/dist/esm/icons/inbox.js:
@@ -13677,7 +13823,7 @@ lucide-react/dist/esm/icons/rotate-ccw.js:
 lucide-react/dist/esm/icons/save.js:
 lucide-react/dist/esm/icons/search.js:
 lucide-react/dist/esm/icons/send.js:
-lucide-react/dist/esm/icons/sliders-horizontal.js:
+lucide-react/dist/esm/icons/square-dashed-mouse-pointer.js:
 lucide-react/dist/esm/icons/star.js:
 lucide-react/dist/esm/icons/table-2.js:
 lucide-react/dist/esm/icons/tags.js:

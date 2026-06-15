@@ -17,6 +17,7 @@ import type LocalCapturePlugin from "../../main";
 import { CaptureItem } from "../../types";
 import { formatDisplayDateTime } from "../../utils/dates";
 import { IconButton } from "../shared/IconButton";
+import { OverflowMenu } from "../shared/OverflowMenu";
 import { statusText, tagColorStyle } from "../shared/formatters";
 import { MarkdownPreview } from "../MarkdownPreview";
 
@@ -113,30 +114,44 @@ export function CaptureCard({
               </IconButton>
             </>
           ) : (
-            <IconButton title="编辑" onClick={onStartEdit}>
-              <Pencil size={16} />
-            </IconButton>
+            <>
+              <IconButton title="编辑" onClick={onStartEdit}>
+                <Pencil size={16} />
+              </IconButton>
+              <OverflowMenu title="更多操作" align="right">
+                <button type="button" role="menuitem" onClick={() => plugin.pickTargetAndSend([item])}>
+                  <Send size={14} aria-hidden="true" />
+                  <span>发送到文件</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => plugin.openCaptureFile(item)}>
+                  <ExternalLink size={14} aria-hidden="true" />
+                  <span>打开源文件</span>
+                </button>
+                {item.status === "active" ? (
+                  <button type="button" role="menuitem" onClick={() => plugin.captureService.setStatus(item, "archived")}>
+                    <Archive size={14} aria-hidden="true" />
+                    <span>归档</span>
+                  </button>
+                ) : (
+                  <button type="button" role="menuitem" onClick={restore}>
+                    <ArchiveRestore size={14} aria-hidden="true" />
+                    <span>恢复</span>
+                  </button>
+                )}
+                {item.status !== "deleted" ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="local-capture-destructive"
+                    onClick={() => plugin.captureService.setStatus(item, "deleted")}
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                    <span>删除</span>
+                  </button>
+                ) : null}
+              </OverflowMenu>
+            </>
           )}
-          <IconButton title="发送到文件" onClick={() => plugin.pickTargetAndSend([item])}>
-            <Send size={16} />
-          </IconButton>
-          <IconButton title="打开源文件" onClick={() => plugin.openCaptureFile(item)}>
-            <ExternalLink size={16} />
-          </IconButton>
-          {item.status === "active" ? (
-            <IconButton title="归档" onClick={() => plugin.captureService.setStatus(item, "archived")}>
-              <Archive size={16} />
-            </IconButton>
-          ) : (
-            <IconButton title="恢复" onClick={restore}>
-              <ArchiveRestore size={16} />
-            </IconButton>
-          )}
-          {item.status !== "deleted" ? (
-            <IconButton title="删除" onClick={() => plugin.captureService.setStatus(item, "deleted")}>
-              <Trash2 size={16} />
-            </IconButton>
-          ) : null}
         </div>
       </header>
 

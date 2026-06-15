@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.6
+
+- Added a reusable OverflowMenu component (click-outside + Escape to close) and used it to collapse card secondary actions (send / open source / archive / restore / delete) behind a `⋯` menu — cards now show only pin + edit in the header for a cleaner look.
+- Moved the "select-results" affordance out of the always-visible filter row into the BatchBar (appears as "全选 / 取消" alongside the selection count once anything is selected).
+- Converted the always-visible table column controls row into a small column-icon button in the table toolbar; clicking it opens a popover with the same checkboxes.
+- Marked destructive overflow menu items with an error color and hover treatment so deletes are visually distinct from safe actions.
+
 ## 0.9.5
 
 - Fixed advanced filters expand/collapse animation that was unstable due to a duplicate `.local-capture-advanced-body` class collision between the animation wrapper and the inner content root.

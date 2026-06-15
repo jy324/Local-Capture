@@ -1,4 +1,4 @@
-import { List, Search, SlidersHorizontal, Table2 } from "lucide-react";
+import { List, Search, Table2 } from "lucide-react";
 import { JSX } from "react";
 import { StatusFilter, ViewMode } from "../types";
 
@@ -9,7 +9,6 @@ interface FilterBarProps {
   onStatusChange: (status: StatusFilter) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-  onSelectVisible: () => void;
 }
 
 export function FilterBar({
@@ -18,8 +17,7 @@ export function FilterBar({
   status,
   onStatusChange,
   viewMode,
-  onViewModeChange,
-  onSelectVisible
+  onViewModeChange
 }: FilterBarProps): JSX.Element {
   return (
     <section className="local-capture-tools" aria-label="筛选">
@@ -60,16 +58,6 @@ export function FilterBar({
             表格
           </button>
         </div>
-
-        <button
-          type="button"
-          className="local-capture-select-results"
-          title="选择/取消当前结果"
-          onClick={onSelectVisible}
-        >
-          <SlidersHorizontal size={14} aria-hidden="true" />
-          选择结果
-        </button>
       </div>
     </section>
   );

@@ -1,9 +1,10 @@
-import { Send } from "lucide-react";
+import { Columns3, Send } from "lucide-react";
 import { JSX, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type LocalCapturePlugin from "../../main";
 import { CaptureItem } from "../../types";
 import { formatDisplayDateTime } from "../../utils/dates";
+import { OverflowMenu } from "../shared/OverflowMenu";
 import { statusText, tableColumns } from "../shared/formatters";
 import { SortDirection, TableColumn, TableSortKey } from "../types";
 
@@ -28,18 +29,24 @@ export function TableColumnControls({
   onToggle: (column: TableColumn) => void;
 }): JSX.Element {
   return (
-    <div className="local-capture-column-controls" aria-label="表格列显示">
-      {tableColumns.map((column) => (
-        <label key={column.key}>
-          <input
-            type="checkbox"
-            checked={visibleColumns.has(column.key)}
-            onChange={() => onToggle(column.key)}
-          />
-          {column.label}
-        </label>
-      ))}
-    </div>
+    <OverflowMenu
+      title="表格列显示"
+      align="right"
+      trigger={<Columns3 size={16} aria-hidden="true" />}
+    >
+      <div className="local-capture-column-popover" aria-label="表格列显示">
+        {tableColumns.map((column) => (
+          <label key={column.key}>
+            <input
+              type="checkbox"
+              checked={visibleColumns.has(column.key)}
+              onChange={() => onToggle(column.key)}
+            />
+            {column.label}
+          </label>
+        ))}
+      </div>
+    </OverflowMenu>
   );
 }
 

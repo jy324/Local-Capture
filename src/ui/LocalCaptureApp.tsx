@@ -79,8 +79,11 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
     await plugin.saveSettings();
   }
 
+  const visibleItems = viewMode === "table" ? tableSort.tableItems : filteredItems;
+  const visibleIds = useMemo(() => visibleItems.map((item) => item.id), [visibleItems]);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selection.has(id));
+
   function selectVisible(): void {
-    const visibleIds = (viewMode === "table" ? tableSort.tableItems : filteredItems).map((item) => item.id);
     selection.toggleAll(visibleIds);
   }
 
@@ -184,7 +187,6 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
         onStatusChange={filters.setStatus}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        onSelectVisible={selectVisible}
       />
 
       <AdvancedFilters
@@ -209,6 +211,9 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
       <BatchBar
         plugin={plugin}
         selectedItems={selection.selectedItems}
+        visibleCount={visibleIds.length}
+        allVisibleSelected={allVisibleSelected}
+        onToggleAllVisible={selectVisible}
         onArchive={archiveSelected}
         onRestore={restoreSelected}
         onDelete={deleteSelected}
@@ -239,7 +244,9 @@ export function LocalCaptureApp({ plugin }: LocalCaptureAppProps): JSX.Element {
         />
       ) : (
         <>
-          <TableColumnControls visibleColumns={tableSort.visibleColumns} onToggle={tableSort.toggleColumn} />
+          <div className="local-capture-table-toolbar">
+            <TableColumnControls visibleColumns={tableSort.visibleColumns} onToggle={tableSort.toggleColumn} />
+          </div>
           <CaptureTable
             plugin={plugin}
             items={tableSort.tableItems}

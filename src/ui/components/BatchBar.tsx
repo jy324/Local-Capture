@@ -1,4 +1,4 @@
-import { Archive, ListTodo, RotateCcw, Send, Tags, Trash2, X } from "lucide-react";
+import { Archive, ListTodo, MousePointerSquareDashed, RotateCcw, Send, Tags, Trash2, X } from "lucide-react";
 import { JSX } from "react";
 import type LocalCapturePlugin from "../../main";
 import { CaptureItem } from "../../types";
@@ -6,6 +6,9 @@ import { CaptureItem } from "../../types";
 interface BatchBarProps {
   plugin: LocalCapturePlugin;
   selectedItems: CaptureItem[];
+  visibleCount: number;
+  allVisibleSelected: boolean;
+  onToggleAllVisible: () => void;
   onArchive: () => void | Promise<void>;
   onRestore: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
@@ -15,6 +18,9 @@ interface BatchBarProps {
 export function BatchBar({
   plugin,
   selectedItems,
+  visibleCount,
+  allVisibleSelected,
+  onToggleAllVisible,
   onArchive,
   onRestore,
   onDelete,
@@ -26,6 +32,18 @@ export function BatchBar({
     <div className="local-capture-batchbar">
       <span className="local-capture-batchbar-count">{selectedItems.length}</span>
       <span className="local-capture-batchbar-label">条</span>
+
+      <button
+        type="button"
+        className="local-capture-batchbar-selectall"
+        title={allVisibleSelected ? `取消选择当前 ${visibleCount} 条` : `选择当前 ${visibleCount} 条`}
+        onClick={onToggleAllVisible}
+      >
+        <MousePointerSquareDashed size={15} aria-hidden="true" />
+        {allVisibleSelected ? "取消" : "全选"}
+      </button>
+
+      <div className="local-capture-batchbar-divider" aria-hidden="true" />
 
       <div className="local-capture-batchbar-group">
         <button type="button" title="发送到文件" onClick={() => plugin.runAction("发送到文件", () => plugin.pickTargetAndSend(selectedItems))}>
