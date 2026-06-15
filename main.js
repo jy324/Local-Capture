@@ -8357,7 +8357,7 @@ var import_obsidian9 = require("obsidian");
 var import_client = __toESM(require_client());
 
 // src/ui/LocalCaptureApp.tsx
-var import_react13 = __toESM(require_react());
+var import_react14 = __toESM(require_react());
 
 // src/modals/ConfirmActionModal.ts
 var import_obsidian6 = require("obsidian");
@@ -8719,6 +8719,9 @@ var X = createLucideIcon("X", [
   ["path", { d: "m6 6 12 12", key: "d8bk6v" }]
 ]);
 
+// src/ui/components/AdvancedFilters.tsx
+var import_react4 = __toESM(require_react());
+
 // src/ui/shared/formatters.ts
 function statusText(status) {
   if (status === "archived") return "\u5F52\u6863";
@@ -8796,6 +8799,7 @@ function Heatmap({ items, days, selectedDay, onSelectDay }) {
 
 // src/ui/components/AdvancedFilters.tsx
 var import_jsx_runtime2 = __toESM(require_jsx_runtime());
+var TAG_CLOUD_COLLAPSED_LIMIT = 18;
 function AdvancedFilters(props) {
   const { open, onToggleOpen } = props;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { className: "local-capture-advanced", "aria-label": "\u9AD8\u7EA7\u7B5B\u9009", children: [
@@ -8855,21 +8859,7 @@ function AdvancedFiltersBody({
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u4FDD\u5B58\u5F53\u524D\u67E5\u8BE2", onClick: onSaveQuery, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Star, { size: 14, "aria-hidden": "true" }) }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", title: "\u5220\u9664\u9009\u4E2D\u67E5\u8BE2", disabled: !savedQueryId, onClick: onDeleteSavedQuery, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Trash2, { size: 14, "aria-hidden": "true" }) })
     ] }),
-    tagCounts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "local-capture-tag-cloud", "aria-label": "\u6807\u7B7E\u5217\u8868", children: tagCounts.slice(0, 18).map(([tag, count]) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-      "button",
-      {
-        type: "button",
-        title: `\u7B5B\u9009 #${tag}`,
-        style: tagColorStyle(plugin.settings.tagColors[tag]),
-        onClick: () => onSelectTag(tag),
-        children: [
-          "#",
-          tag,
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: count })
-        ]
-      },
-      tag
-    )) }) : null,
+    tagCounts.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(TagCloud, { plugin, tagCounts, onSelectTag }) : null,
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
       Heatmap,
       {
@@ -8884,6 +8874,45 @@ function AdvancedFiltersBody({
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(X, { size: 14, "aria-hidden": "true" })
     ] }) : null
   ] });
+}
+function TagCloud({ plugin, tagCounts, onSelectTag }) {
+  const [expanded, setExpanded] = (0, import_react4.useState)(false);
+  const overflowCount = tagCounts.length - TAG_CLOUD_COLLAPSED_LIMIT;
+  const showAll = expanded || overflowCount <= 0;
+  const visible = showAll ? tagCounts : tagCounts.slice(0, TAG_CLOUD_COLLAPSED_LIMIT);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+    "div",
+    {
+      className: `local-capture-tag-cloud ${expanded ? "is-expanded" : ""}`,
+      "aria-label": "\u6807\u7B7E\u5217\u8868",
+      children: [
+        visible.map(([tag, count]) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "button",
+          {
+            type: "button",
+            title: `\u7B5B\u9009 #${tag}`,
+            style: tagColorStyle(plugin.settings.tagColors[tag]),
+            onClick: () => onSelectTag(tag),
+            children: [
+              "#",
+              tag,
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { children: count })
+            ]
+          },
+          tag
+        )),
+        overflowCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          "button",
+          {
+            type: "button",
+            className: "local-capture-tag-cloud-more",
+            onClick: () => setExpanded((current) => !current),
+            children: expanded ? "\u6536\u8D77" : `+${overflowCount} \u66F4\u591A`
+          }
+        ) : null
+      ]
+    }
+  );
 }
 
 // src/ui/components/BatchBar.tsx
@@ -8933,7 +8962,7 @@ function BatchBar({
 }
 
 // src/ui/components/CaptureTable.tsx
-var import_react5 = __toESM(require_react());
+var import_react6 = __toESM(require_react());
 
 // node_modules/@tanstack/react-virtual/dist/esm/index.js
 var React = __toESM(require_react(), 1);
@@ -10237,7 +10266,7 @@ function useVirtualizer(options) {
 }
 
 // src/ui/shared/OverflowMenu.tsx
-var import_react4 = __toESM(require_react());
+var import_react5 = __toESM(require_react());
 var import_react_dom2 = __toESM(require_react_dom());
 var import_jsx_runtime4 = __toESM(require_jsx_runtime());
 function OverflowMenu({
@@ -10246,11 +10275,11 @@ function OverflowMenu({
   trigger,
   children
 }) {
-  const [open, setOpen] = (0, import_react4.useState)(false);
-  const [panelStyle, setPanelStyle] = (0, import_react4.useState)({});
-  const wrapRef = (0, import_react4.useRef)(null);
-  const panelRef = (0, import_react4.useRef)(null);
-  (0, import_react4.useLayoutEffect)(() => {
+  const [open, setOpen] = (0, import_react5.useState)(false);
+  const [panelStyle, setPanelStyle] = (0, import_react5.useState)({});
+  const wrapRef = (0, import_react5.useRef)(null);
+  const panelRef = (0, import_react5.useRef)(null);
+  (0, import_react5.useLayoutEffect)(() => {
     if (!open) return;
     const trigger2 = wrapRef.current?.querySelector("button");
     if (!trigger2) return;
@@ -10260,7 +10289,7 @@ function OverflowMenu({
     else style.left = rect.left;
     setPanelStyle(style);
   }, [open, align]);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react5.useEffect)(() => {
     if (!open) return;
     function handlePointer(event) {
       const wrap = wrapRef.current;
@@ -10353,7 +10382,7 @@ function CaptureTable({
   sortDirection,
   onSort
 }) {
-  const parentRef = (0, import_react5.useRef)(null);
+  const parentRef = (0, import_react6.useRef)(null);
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
@@ -10580,7 +10609,7 @@ function StatusButton({ label, value, status, onChange }) {
 }
 
 // src/ui/components/Timeline.tsx
-var import_react7 = __toESM(require_react());
+var import_react8 = __toESM(require_react());
 
 // src/actionErrors.ts
 var import_obsidian7 = require("obsidian");
@@ -10618,11 +10647,11 @@ function IconButton({ title, children, onClick }) {
 
 // src/ui/MarkdownPreview.tsx
 var import_obsidian8 = require("obsidian");
-var import_react6 = __toESM(require_react());
+var import_react7 = __toESM(require_react());
 var import_jsx_runtime10 = __toESM(require_jsx_runtime());
 function MarkdownPreview({ markdown, sourcePath, plugin }) {
-  const ref = (0, import_react6.useRef)(null);
-  (0, import_react6.useEffect)(() => {
+  const ref = (0, import_react7.useRef)(null);
+  (0, import_react7.useEffect)(() => {
     const element = ref.current;
     if (!element) return;
     element.empty();
@@ -10772,7 +10801,7 @@ function Timeline({
   isEditDirty: isEditDirty2,
   hasEditConflict: hasEditConflict2
 }) {
-  const parentRef = (0, import_react7.useRef)(null);
+  const parentRef = (0, import_react8.useRef)(null);
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
@@ -12821,25 +12850,25 @@ Fuse.use = function(...plugins) {
 };
 
 // src/ui/hooks/useCaptureFilters.ts
-var import_react8 = __toESM(require_react());
+var import_react9 = __toESM(require_react());
 function useCaptureFilters(items) {
-  const [query, setQuery] = (0, import_react8.useState)("");
-  const [status, setStatus] = (0, import_react8.useState)("active");
-  const [selectedDay, setSelectedDay] = (0, import_react8.useState)();
-  const [debouncedQuery, setDebouncedQuery] = (0, import_react8.useState)("");
-  const timer = (0, import_react8.useRef)(null);
-  (0, import_react8.useEffect)(() => {
+  const [query, setQuery] = (0, import_react9.useState)("");
+  const [status, setStatus] = (0, import_react9.useState)("active");
+  const [selectedDay, setSelectedDay] = (0, import_react9.useState)();
+  const [debouncedQuery, setDebouncedQuery] = (0, import_react9.useState)("");
+  const timer = (0, import_react9.useRef)(null);
+  (0, import_react9.useEffect)(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setDebouncedQuery(query), 150);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [query]);
-  const scopedItems = (0, import_react8.useMemo)(() => {
+  const scopedItems = (0, import_react9.useMemo)(() => {
     const byStatus = status === "all" ? items : items.filter((item) => item.status === status);
     return selectedDay ? byStatus.filter((item) => dayKeyFromIso(item.createdAt) === selectedDay) : byStatus;
   }, [items, selectedDay, status]);
-  const fuse = (0, import_react8.useMemo)(
+  const fuse = (0, import_react9.useMemo)(
     () => new Fuse(scopedItems, {
       keys: ["title", "bodyMarkdown", "tags", "path", "type"],
       threshold: 0.35,
@@ -12847,7 +12876,7 @@ function useCaptureFilters(items) {
     }),
     [scopedItems]
   );
-  const filteredItems = (0, import_react8.useMemo)(() => {
+  const filteredItems = (0, import_react9.useMemo)(() => {
     const trimmed = debouncedQuery.trim();
     if (!trimmed) return scopedItems;
     return fuse.search(trimmed).map((result) => result.item);
@@ -12864,11 +12893,11 @@ function useCaptureFilters(items) {
 }
 
 // src/ui/hooks/useCaptureItems.ts
-var import_react9 = __toESM(require_react());
+var import_react10 = __toESM(require_react());
 function useCaptureItems(plugin) {
-  const [items, setItems] = (0, import_react9.useState)(() => plugin.index.getItems());
-  const [isRebuilding, setIsRebuilding] = (0, import_react9.useState)(() => plugin.index.isRebuilding());
-  (0, import_react9.useEffect)(() => {
+  const [items, setItems] = (0, import_react10.useState)(() => plugin.index.getItems());
+  const [isRebuilding, setIsRebuilding] = (0, import_react10.useState)(() => plugin.index.isRebuilding());
+  (0, import_react10.useEffect)(() => {
     setItems(plugin.index.getItems());
     setIsRebuilding(plugin.index.isRebuilding());
     return plugin.index.subscribe(() => {
@@ -12880,11 +12909,11 @@ function useCaptureItems(plugin) {
 }
 
 // src/ui/hooks/useSavedQueries.ts
-var import_react10 = __toESM(require_react());
+var import_react11 = __toESM(require_react());
 function useSavedQueries(plugin) {
-  const [savedQueries, setSavedQueries] = (0, import_react10.useState)(() => plugin.settings.savedQueries);
-  const [savedQueryId, setSavedQueryId] = (0, import_react10.useState)("");
-  const [savedQueryName, setSavedQueryName] = (0, import_react10.useState)("");
+  const [savedQueries, setSavedQueries] = (0, import_react11.useState)(() => plugin.settings.savedQueries);
+  const [savedQueryId, setSavedQueryId] = (0, import_react11.useState)("");
+  const [savedQueryName, setSavedQueryName] = (0, import_react11.useState)("");
   async function save(name, filter) {
     const saved = await plugin.saveQuery(name, filter);
     setSavedQueries([...plugin.settings.savedQueries]);
@@ -12909,13 +12938,13 @@ function useSavedQueries(plugin) {
 }
 
 // src/ui/hooks/useSelection.ts
-var import_react11 = __toESM(require_react());
+var import_react12 = __toESM(require_react());
 function useSelection(plugin, items) {
-  const [selectedIds, setSelectedIds] = (0, import_react11.useState)(() => /* @__PURE__ */ new Set());
-  (0, import_react11.useEffect)(() => {
+  const [selectedIds, setSelectedIds] = (0, import_react12.useState)(() => /* @__PURE__ */ new Set());
+  (0, import_react12.useEffect)(() => {
     plugin.setSelectedCaptureIds([...selectedIds]);
   }, [plugin, selectedIds]);
-  (0, import_react11.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     const valid = new Set(items.map((item) => item.id));
     setSelectedIds((current) => {
       let changed = false;
@@ -12927,8 +12956,8 @@ function useSelection(plugin, items) {
       return changed ? next : current;
     });
   }, [items]);
-  const has = (0, import_react11.useCallback)((id) => selectedIds.has(id), [selectedIds]);
-  const toggle = (0, import_react11.useCallback)((id) => {
+  const has = (0, import_react12.useCallback)((id) => selectedIds.has(id), [selectedIds]);
+  const toggle = (0, import_react12.useCallback)((id) => {
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -12936,8 +12965,8 @@ function useSelection(plugin, items) {
       return next;
     });
   }, []);
-  const clear = (0, import_react11.useCallback)(() => setSelectedIds(/* @__PURE__ */ new Set()), []);
-  const toggleAll = (0, import_react11.useCallback)((visibleIds) => {
+  const clear = (0, import_react12.useCallback)(() => setSelectedIds(/* @__PURE__ */ new Set()), []);
+  const toggleAll = (0, import_react12.useCallback)((visibleIds) => {
     setSelectedIds((current) => {
       const allSelected = visibleIds.length > 0 && visibleIds.every((id) => current.has(id));
       const next = new Set(current);
@@ -12949,7 +12978,7 @@ function useSelection(plugin, items) {
       return next;
     });
   }, []);
-  const selectedItems = (0, import_react11.useMemo)(
+  const selectedItems = (0, import_react12.useMemo)(
     () => items.filter((item) => selectedIds.has(item.id)),
     [items, selectedIds]
   );
@@ -12957,14 +12986,14 @@ function useSelection(plugin, items) {
 }
 
 // src/ui/hooks/useTableSort.ts
-var import_react12 = __toESM(require_react());
+var import_react13 = __toESM(require_react());
 function useTableSort(filteredItems) {
-  const [sortKey, setSortKey] = (0, import_react12.useState)("createdAt");
-  const [sortDirection, setSortDirection] = (0, import_react12.useState)("desc");
-  const [visibleColumns, setVisibleColumns] = (0, import_react12.useState)(
+  const [sortKey, setSortKey] = (0, import_react13.useState)("createdAt");
+  const [sortDirection, setSortDirection] = (0, import_react13.useState)("desc");
+  const [visibleColumns, setVisibleColumns] = (0, import_react13.useState)(
     () => /* @__PURE__ */ new Set(["time", "type", "status", "title", "tags"])
   );
-  const tableItems = (0, import_react12.useMemo)(
+  const tableItems = (0, import_react13.useMemo)(
     () => sortTableItems(filteredItems, sortKey, sortDirection),
     [filteredItems, sortDirection, sortKey]
   );
@@ -13019,20 +13048,20 @@ function canDiscardEditWithoutConfirm(session) {
 var import_jsx_runtime13 = __toESM(require_jsx_runtime());
 function LocalCaptureApp({ plugin }) {
   const { items, isRebuilding } = useCaptureItems(plugin);
-  const [draft, setDraft] = (0, import_react13.useState)("");
-  const [draftType, setDraftType] = (0, import_react13.useState)(plugin.settings.defaultType);
-  const [viewMode, setViewMode] = (0, import_react13.useState)("timeline");
-  const [advancedOpen, setAdvancedOpen] = (0, import_react13.useState)(() => plugin.settings.advancedFiltersOpen);
-  const [editSession, setEditSession] = (0, import_react13.useState)(null);
+  const [draft, setDraft] = (0, import_react14.useState)("");
+  const [draftType, setDraftType] = (0, import_react14.useState)(plugin.settings.defaultType);
+  const [viewMode, setViewMode] = (0, import_react14.useState)("timeline");
+  const [advancedOpen, setAdvancedOpen] = (0, import_react14.useState)(() => plugin.settings.advancedFiltersOpen);
+  const [editSession, setEditSession] = (0, import_react14.useState)(null);
   const filters = useCaptureFilters(items);
   const { filteredItems, query, status, selectedDay } = filters;
   const selection = useSelection(plugin, items);
   const tableSort = useTableSort(filteredItems);
   const savedQueriesState = useSavedQueries(plugin);
-  (0, import_react13.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     plugin.setActiveDayKey(selectedDay);
   }, [plugin, selectedDay]);
-  const tagCounts = (0, import_react13.useMemo)(() => {
+  const tagCounts = (0, import_react14.useMemo)(() => {
     const counts = /* @__PURE__ */ new Map();
     for (const item of items) {
       if (item.status === "deleted") continue;
@@ -13059,7 +13088,7 @@ function LocalCaptureApp({ plugin }) {
     await plugin.saveSettings();
   }
   const visibleItems = viewMode === "table" ? tableSort.tableItems : filteredItems;
-  const visibleIds = (0, import_react13.useMemo)(() => visibleItems.map((item) => item.id), [visibleItems]);
+  const visibleIds = (0, import_react14.useMemo)(() => visibleItems.map((item) => item.id), [visibleItems]);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selection.has(id));
   function selectVisible() {
     selection.toggleAll(visibleIds);

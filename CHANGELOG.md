@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.7
+
+- Stretched the composer save button to fill the remaining row width with a slightly taller (32px) target — the primary action is now clearly the largest hit area in the composer.
+- Added "+N 更多 / 收起" toggle to the tag cloud when more than 18 tags exist; expanded state lifts the height cap to 320px with a scroll fallback.
+- Softened card outline and replaced the 12px transparent gap between cards with a 1px hairline separator that respects card width so the timeline reads as a rhythm of items instead of a stack of boxes.
+
 ## 0.9.6
 
 - Added a reusable OverflowMenu component (click-outside + Escape to close) and used it to collapse card secondary actions (send / open source / archive / restore / delete) behind a `⋯` menu — cards now show only pin + edit in the header for a cleaner look.

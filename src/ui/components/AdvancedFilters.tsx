@@ -1,9 +1,11 @@
 import { ChevronRight, Star, Trash2, X } from "lucide-react";
-import { JSX } from "react";
+import { JSX, useState } from "react";
 import type LocalCapturePlugin from "../../main";
 import { CaptureItem, SavedQuery } from "../../types";
 import { tagColorStyle } from "../shared/formatters";
 import { Heatmap } from "./Heatmap";
+
+const TAG_CLOUD_COLLAPSED_LIMIT = 18;
 
 interface AdvancedFiltersProps {
   open: boolean;
@@ -93,22 +95,7 @@ function AdvancedFiltersBody({
         </button>
       </div>
 
-      {tagCounts.length > 0 ? (
-        <div className="local-capture-tag-cloud" aria-label="标签列表">
-          {tagCounts.slice(0, 18).map(([tag, count]) => (
-            <button
-              key={tag}
-              type="button"
-              title={`筛选 #${tag}`}
-              style={tagColorStyle(plugin.settings.tagColors[tag])}
-              onClick={() => onSelectTag(tag)}
-            >
-              #{tag}
-              <span>{count}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {tagCounts.length > 0 ? <TagCloud plugin={plugin} tagCounts={tagCounts} onSelectTag={onSelectTag} /> : null}
 
       <Heatmap
         items={items}
@@ -124,5 +111,47 @@ function AdvancedFiltersBody({
         </button>
       ) : null}
     </>
+  );
+}
+
+interface TagCloudProps {
+  plugin: LocalCapturePlugin;
+  tagCounts: Array<[string, number]>;
+  onSelectTag: (tag: string) => void;
+}
+
+function TagCloud({ plugin, tagCounts, onSelectTag }: TagCloudProps): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const overflowCount = tagCounts.length - TAG_CLOUD_COLLAPSED_LIMIT;
+  const showAll = expanded || overflowCount <= 0;
+  const visible = showAll ? tagCounts : tagCounts.slice(0, TAG_CLOUD_COLLAPSED_LIMIT);
+
+  return (
+    <div
+      className={`local-capture-tag-cloud ${expanded ? "is-expanded" : ""}`}
+      aria-label="标签列表"
+    >
+      {visible.map(([tag, count]) => (
+        <button
+          key={tag}
+          type="button"
+          title={`筛选 #${tag}`}
+          style={tagColorStyle(plugin.settings.tagColors[tag])}
+          onClick={() => onSelectTag(tag)}
+        >
+          #{tag}
+          <span>{count}</span>
+        </button>
+      ))}
+      {overflowCount > 0 ? (
+        <button
+          type="button"
+          className="local-capture-tag-cloud-more"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? "收起" : `+${overflowCount} 更多`}
+        </button>
+      ) : null}
+    </div>
   );
 }
