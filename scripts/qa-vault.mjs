@@ -38,7 +38,8 @@ const captures = [
     status: "active",
     pinned: true,
     tags: ["qa", "project/local-capture"],
-    body: "记录快速输入、Markdown 渲染和 #qa 标签。\n\n- 支持列表\n- 支持链接 [[Local Capture QA/Send Target]]"
+    custom: { aliases: ["QA 锚点笔记"], cssclass: "qa-custom-card" },
+    body: "记录快速输入、Markdown 渲染和 #qa 标签。\n\n编辑此条正文并保存后，aliases / cssclass 应保留（frontmatter 保护回归检查）。\n\n- 支持列表\n- 支持链接 [[Local Capture QA/Send Target]]"
   },
   {
     id: "qa-task-001",
@@ -165,6 +166,17 @@ async function pluginEnabled(path, id) {
 }
 
 function serializeCapture(capture) {
+  const customLines = [];
+  if (capture.custom) {
+    for (const [key, value] of Object.entries(capture.custom)) {
+      if (Array.isArray(value)) {
+        customLines.push(`${key}:`, ...value.map((entry) => `  - "${entry}"`));
+      } else {
+        customLines.push(`${key}: "${value}"`);
+      }
+    }
+  }
+
   const frontmatter = [
     "---",
     `capture_id: "${capture.id}"`,
@@ -177,6 +189,7 @@ function serializeCapture(capture) {
     "tags:",
     ...capture.tags.map((tag) => `  - "${tag}"`),
     ...(capture.sentTo ? ["sent_to:", ...capture.sentTo.map((target) => `  - "${target}"`)] : []),
+    ...customLines,
     `source: "manual"`,
     "---",
     "",

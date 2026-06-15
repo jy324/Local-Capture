@@ -2,11 +2,16 @@ import { App, TAbstractFile, TFile, normalizePath } from "obsidian";
 import { LocalCaptureSettings } from "../settings";
 import { CaptureIndexListener, CaptureItem } from "../types";
 import { parseCaptureFile } from "../utils/frontmatter";
+import { mapWithConcurrency } from "../utils/async";
+
+const INDEX_READ_CONCURRENCY = 8;
 
 export class CaptureIndex {
   private readonly itemsByPath = new Map<string, CaptureItem>();
   private readonly listeners = new Set<CaptureIndexListener>();
   private rebuilding = false;
+  private rebuildPending = false;
+  private sortedCache: CaptureItem[] | null = null;
 
   constructor(
     private readonly app: App,
@@ -18,8 +23,15 @@ export class CaptureIndex {
     return () => this.listeners.delete(listener);
   }
 
+  isRebuilding(): boolean {
+    return this.rebuilding;
+  }
+
   getItems(): CaptureItem[] {
-    return [...this.itemsByPath.values()].sort(sortCaptures);
+    if (!this.sortedCache) {
+      this.sortedCache = [...this.itemsByPath.values()].sort(sortCaptures);
+    }
+    return this.sortedCache;
   }
 
   getById(id: string): CaptureItem | undefined {
@@ -32,30 +44,38 @@ export class CaptureIndex {
   }
 
   async rebuild(): Promise<void> {
-    if (this.rebuilding) return;
-    this.rebuilding = true;
-
-    try {
-      const next = new Map<string, CaptureItem>();
-      const files = this.app.vault
-        .getMarkdownFiles()
-        .filter((file) => this.isCapturePath(file.path));
-
-      for (const file of files) {
-        const item = await this.readCapture(file);
-        if (item) {
-          next.set(file.path, item);
-        }
-      }
-
-      this.itemsByPath.clear();
-      for (const [path, item] of next) {
-        this.itemsByPath.set(path, item);
-      }
-      this.notify();
-    } finally {
-      this.rebuilding = false;
+    if (this.rebuilding) {
+      this.rebuildPending = true;
+      return;
     }
+
+    do {
+      this.rebuildPending = false;
+      this.rebuilding = true;
+      this.notify();
+
+      try {
+        const next = new Map<string, CaptureItem>();
+        const files = this.app.vault
+          .getMarkdownFiles()
+          .filter((file) => this.isCapturePath(file.path));
+
+        await mapWithConcurrency(files, INDEX_READ_CONCURRENCY, async (file) => {
+          const item = await this.readCapture(file);
+          if (item) {
+            next.set(file.path, item);
+          }
+        });
+
+        this.itemsByPath.clear();
+        for (const [path, item] of next) {
+          this.itemsByPath.set(path, item);
+        }
+      } finally {
+        this.rebuilding = false;
+        this.notify();
+      }
+    } while (this.rebuildPending);
   }
 
   async updateFile(file: TAbstractFile): Promise<void> {
@@ -100,6 +120,7 @@ export class CaptureIndex {
   }
 
   private notify(): void {
+    this.sortedCache = null;
     for (const listener of this.listeners) {
       listener();
     }

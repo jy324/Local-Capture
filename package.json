@@ -1,12 +1,13 @@
 {
   "name": "local-capture",
-  "version": "0.8.0",
+  "version": "0.9.7",
   "description": "Markdown-native local-first quick capture timeline for Obsidian.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "package:release": "npm run build && node scripts/package-release.mjs",
+    "verify:release": "npm run package:release && node scripts/verify-release.mjs",
     "install:vault": "node scripts/install-to-vault.mjs",
     "qa:smoke": "npm run package:release && node scripts/install-to-vault.mjs dist/test-vault",
     "qa:vault": "npm run package:release && node scripts/qa-vault.mjs",

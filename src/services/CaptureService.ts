@@ -1,4 +1,4 @@
-import { App, Notice, TFile, normalizePath } from "obsidian";
+import { App, Notice, TFile, TFolder, normalizePath } from "obsidian";
 import { LocalCaptureSettings } from "../settings";
 import { CaptureIndex } from "./CaptureIndex";
 import {
@@ -13,8 +13,11 @@ import {
 } from "../types";
 import { buildCapturePath, dayKeyFromIso } from "../utils/dates";
 import { extractInlineTags, mergeTags, normalizeTag, replaceInlineTag, uniqueTags } from "../utils/tags";
-import { parseCaptureFile, serializeCaptureFile } from "../utils/frontmatter";
+import { parseCaptureFile, replaceBody, serializeCaptureFile } from "../utils/frontmatter";
 import { formatCaptureForAppend, formatDailySummaryBlock, upsertDailySummaryBlock } from "../utils/markdown";
+import { mapWithConcurrency } from "../utils/async";
+
+const BATCH_WRITE_CONCURRENCY = 8;
 
 export class CaptureService {
   constructor(
@@ -65,14 +68,19 @@ export class CaptureService {
     const file = this.requireFile(capture.path);
     if (!file) return;
 
-    const updated: CaptureItem = {
-      ...capture,
-      bodyMarkdown: bodyMarkdown.trimEnd(),
-      updatedAt: new Date().toISOString(),
-      tags: mergeTags(capture.tags, extractInlineTags(bodyMarkdown))
-    };
+    const body = bodyMarkdown.trimEnd();
+    const tags = mergeTags(capture.tags, extractInlineTags(bodyMarkdown));
 
-    await this.app.vault.process(file, () => serializeCaptureFile(updated));
+    // Replace only the body, preserving the original frontmatter block verbatim
+    // (including any user-authored keys Local Capture does not model).
+    await this.app.vault.process(file, (raw) => replaceBody(raw, body));
+    // Persist frontmatter changes through processFrontMatter so unknown keys
+    // survive: only touch the keys we own.
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      const fm = frontmatter as Record<string, unknown>;
+      fm.tags = tags;
+      fm.updated = new Date().toISOString();
+    });
     await this.index.updateFile(file);
   }
 
@@ -99,54 +107,74 @@ export class CaptureService {
   }
 
   async archiveMany(captures: CaptureItem[]): Promise<void> {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "archived")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "archived"));
   }
 
   async softDeleteMany(captures: CaptureItem[]): Promise<void> {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "deleted")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "deleted"));
   }
 
   async restoreMany(captures: CaptureItem[]): Promise<void> {
-    await Promise.all(captures.map((capture) => this.setStatus(capture, "active")));
+    await mapWithConcurrency(captures, BATCH_WRITE_CONCURRENCY, (capture) => this.setStatus(capture, "active"));
   }
 
   async updateTagsMany(captures: CaptureItem[], tags: string[], mode: BatchTagMode): Promise<void> {
     const normalizedTags = uniqueTags(tags);
     if (normalizedTags.length === 0) return;
 
-    await Promise.all(
-      captures.map((capture) =>
-        this.updateFrontmatter(capture, (frontmatter) => {
-          const current = frontmatterTags(frontmatter.tags);
-          if (mode === "replace") {
-            frontmatter.tags = normalizedTags;
-          } else if (mode === "remove") {
-            const removeSet = new Set(normalizedTags.map((tag) => tag.toLocaleLowerCase()));
-            frontmatter.tags = current.filter((tag) => !removeSet.has(tag.toLocaleLowerCase()));
-          } else {
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
+        if (mode === "add") {
+          await this.updateFrontmatter(capture, (frontmatter) => {
+            const current = frontmatterTags(frontmatter.tags);
             frontmatter.tags = uniqueTags([...current, ...normalizedTags]);
+            frontmatter.updated = new Date().toISOString();
+          });
+          return;
+        }
+
+        const currentTags = uniqueTags(capture.tags);
+        const removeSet =
+          mode === "remove"
+            ? new Set(normalizedTags.map((tag) => tag.toLocaleLowerCase()))
+            : new Set(currentTags.map((tag) => tag.toLocaleLowerCase()));
+        let bodyMarkdown = capture.bodyMarkdown;
+        for (const tag of currentTags) {
+          if (removeSet.has(tag.toLocaleLowerCase())) {
+            bodyMarkdown = replaceInlineTag(bodyMarkdown, tag);
           }
-          frontmatter.updated = new Date().toISOString();
-        })
-      )
+        }
+
+        await this.rewriteCapture(capture, {
+          bodyMarkdown,
+          tags:
+            mode === "replace"
+              ? normalizedTags
+              : currentTags.filter((tag) => !removeSet.has(tag.toLocaleLowerCase()))
+        });
+      }
     );
 
     new Notice(`已处理 ${captures.length} 条记录的标签`);
   }
 
   async setTypeMany(captures: CaptureItem[], type: CaptureType): Promise<void> {
-    await Promise.all(
-      captures.map((capture) =>
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      (capture) =>
         this.updateFrontmatter(capture, (frontmatter) => {
-          frontmatter.type = type;
           if (type === "task") {
+            frontmatter.type = type;
             frontmatter.task_status = frontmatter.task_status === "done" ? "done" : "todo";
           } else {
+            frontmatter.type = type;
             delete frontmatter.task_status;
           }
           frontmatter.updated = new Date().toISOString();
         })
-      )
     );
 
     new Notice(`已将 ${captures.length} 条记录改为${type === "task" ? "任务" : "笔记"}`);
@@ -158,14 +186,16 @@ export class CaptureService {
     if (!from || !to || from.toLocaleLowerCase() === to.toLocaleLowerCase()) return;
 
     const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, from));
-    await Promise.all(
-      matching.map(async (capture) => {
+    await mapWithConcurrency(
+      matching,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
         const updatedTags = uniqueTags(capture.tags.map((tag) => sameTag(tag, from) ? to : tag));
         await this.rewriteCapture(capture, {
           bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, from, to),
           tags: updatedTags
         });
-      })
+      }
     );
 
     new Notice(`已将 #${from} 重命名为 #${to}`);
@@ -176,13 +206,15 @@ export class CaptureService {
     if (!target) return;
 
     const matching = this.index.getItems().filter((capture) => hasTag(capture.tags, target));
-    await Promise.all(
-      matching.map(async (capture) => {
+    await mapWithConcurrency(
+      matching,
+      BATCH_WRITE_CONCURRENCY,
+      async (capture) => {
         await this.rewriteCapture(capture, {
           bodyMarkdown: replaceInlineTag(capture.bodyMarkdown, target),
           tags: capture.tags.filter((current) => !sameTag(current, target))
         });
-      })
+      }
     );
 
     new Notice(`已删除 #${target}`);
@@ -194,8 +226,10 @@ export class CaptureService {
     const payload = captures.map(formatCaptureForAppend).join("");
     await this.app.vault.process(target, (current) => `${current.trimEnd()}${payload}`);
 
-    await Promise.all(
-      captures.map((capture) =>
+    await mapWithConcurrency(
+      captures,
+      BATCH_WRITE_CONCURRENCY,
+      (capture) =>
         this.updateFrontmatter(capture, (frontmatter) => {
           const sentTo = Array.isArray(frontmatter.sent_to)
             ? frontmatter.sent_to.filter((value: unknown): value is string => typeof value === "string")
@@ -207,7 +241,6 @@ export class CaptureService {
           }
           frontmatter.updated = new Date().toISOString();
         })
-      )
     );
 
     new Notice(`已发送 ${captures.length} 条记录到 ${target.basename}`);
@@ -278,13 +311,31 @@ export class CaptureService {
     const file = this.requireFile(capture.path);
     if (!file) return;
 
-    const updated: CaptureItem = {
-      ...capture,
-      ...patch,
-      updatedAt: new Date().toISOString()
-    };
-    updated.tags = uniqueTags(updated.tags);
-    await this.app.vault.process(file, () => serializeCaptureFile(updated));
+    // Replace only the body when it changes, preserving the original
+    // frontmatter block (and any user-authored keys we don't model).
+    if (patch.bodyMarkdown !== undefined) {
+      await this.app.vault.process(file, (raw) => replaceBody(raw, patch.bodyMarkdown!.trimEnd()));
+    }
+
+    // Persist modelled frontmatter keys through processFrontMatter so unknown
+    // keys survive.
+    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      const fm = frontmatter as Record<string, unknown>;
+      if (patch.tags !== undefined) fm.tags = uniqueTags(patch.tags);
+      if (patch.type !== undefined) {
+        fm.type = patch.type;
+        if (patch.type === "task") {
+          fm.task_status = patch.taskStatus ?? (fm.task_status === "done" ? "done" : "todo");
+        } else {
+          delete fm.task_status;
+        }
+      } else if (patch.taskStatus !== undefined) {
+        fm.task_status = patch.taskStatus;
+      }
+      if (patch.status !== undefined) fm.status = patch.status;
+      if (patch.pinned !== undefined) fm.pinned = patch.pinned;
+      fm.updated = new Date().toISOString();
+    });
     await this.index.updateFile(file);
   }
 
@@ -296,7 +347,7 @@ export class CaptureService {
     let id = firstId;
     let path = buildCapturePath(folder, createdAt, id);
 
-    while (await this.app.vault.adapter.exists(path)) {
+    while (this.app.vault.getAbstractFileByPath(path)) {
       id = createShortId();
       path = buildCapturePath(folder, createdAt, id);
     }
@@ -312,8 +363,11 @@ export class CaptureService {
         ? normalizePath(settings.dailyNoteFolder ? `${settings.dailyNoteFolder}/${fileName}` : fileName)
         : normalizePath(`${settings.dailySummaryFolder}/${fileName}`);
 
-    const existing = this.getFile(path);
-    if (existing) return existing;
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) return existing;
+    if (existing) {
+      throw new Error(`摘要目标路径已存在且不是文件：${path}`);
+    }
 
     await this.ensureParentFolder(path);
     await this.app.vault.create(path, "");
@@ -328,14 +382,16 @@ export class CaptureService {
 
     try {
       await this.ensureParentFolder(probePath);
-      await this.app.vault.adapter.write(probePath, "Local Capture diagnostic probe\n");
-      await this.app.vault.adapter.remove(probePath);
+      const probeFile = await this.app.vault.create(probePath, "Local Capture diagnostic probe\n");
+      // Hard delete is limited to this transient probe; capture files still use soft delete.
+      await this.app.vault.delete(probeFile);
       return true;
     } catch (error) {
       console.error("Local Capture diagnostics failed", error);
       try {
-        if (await this.app.vault.adapter.exists(probePath)) {
-          await this.app.vault.adapter.remove(probePath);
+        const probeFile = this.getFile(probePath);
+        if (probeFile) {
+          await this.app.vault.delete(probeFile);
         }
       } catch (cleanupError) {
         console.error("Local Capture diagnostics cleanup failed", cleanupError);
@@ -353,8 +409,21 @@ export class CaptureService {
     let current = "";
     for (const segment of segments) {
       current = current ? `${current}/${segment}` : segment;
-      if (!(await this.app.vault.adapter.exists(current))) {
-        await this.app.vault.adapter.mkdir(current);
+      const existing = this.app.vault.getAbstractFileByPath(current);
+      if (existing instanceof TFolder) {
+        continue;
+      }
+      if (existing) {
+        throw new Error(`无法创建目录，路径已存在且不是目录：${current}`);
+      }
+
+      try {
+        await this.app.vault.createFolder(current);
+      } catch (error) {
+        const createdByAnotherOperation = this.app.vault.getAbstractFileByPath(current);
+        if (!(createdByAnotherOperation instanceof TFolder)) {
+          throw error;
+        }
       }
     }
   }
